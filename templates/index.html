@@ -62,7 +62,7 @@
                 <div class="mode-selector">
                     <select id="generation_mode" name="generation_mode">
                         <option value="standard" selected>Standard</option>
-                        <option value="dify">Using Dify</option>
+                        <option value="note cover">note cover</option>
                         <option value="variation">Image Variation</option>
                         <option value="various">Various AI Prompts</option>
                     </select>
@@ -137,6 +137,8 @@
                 localStorage.setItem('generation_mode', document.getElementById('generation_mode').value);
             });
         });
+
+        // Ensure "note cover" is handled if any specific frontend logic is required
     </script>
 </body>
 </html>

@@ -59,6 +59,11 @@ document.addEventListener('DOMContentLoaded', function () {
         localStorage.setItem('width', document.getElementById('width').value);
         localStorage.setItem('height', document.getElementById('height').value);
         localStorage.setItem('generation_mode', document.getElementById('generation_mode').value);
+
+        // Handle "note cover" like "various"
+        if (modeSelector.value === 'note cover') {
+            // Additional frontend handling if necessary
+        }
     });
 
     closeAlertButton.addEventListener('click', function () {

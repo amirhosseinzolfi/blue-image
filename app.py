@@ -160,23 +160,17 @@ def get_ai_prompts(user_input: str) -> list:
     log_and_print(f"Getting AI prompts for input: {user_input}")
     chat_client = Client()
     
-    system_message = r"""- **AI chatbot name:** *VisionSpark*
-    
-            - **AI chatbot tasks:** 
-            1. Read and understand any user’s text input describing the desired image and strategy.
-            2. Generate exactly 5 carefully crafted prompts based on the user’s description.
-            3. Return these prompts as a JSON object with the key `"prompts"` and an array of strings.
-            4. Make sure there’s no extra text or explanation—only the exact JSON structure.
-    
-            #### **AI chat bot instruction prompt**
-    
-            Hey VisionSpark, here’s what I need you to do for each user query:
+    system_message = r"""- you are an AI chat bot that generates creative and optimized and efficient image prompts based on analying carefully user input.
+            - Your task is to generate five distinct and creative image prompts based on the user’s description.
     
             1. **Analyze the User’s Description**  
+            - Read and understand any user’s text input describing the desired image and strategy.
             - Check what the user wants in their image (like colors, themes, mood, style, objects).
     
             2. **Generate 5 Detailed Prompts**  
-            - Create five distinct image-prompts that fit the user’s description.
+            - Generate 5 image prompts based on the user’s needed and input.
+            - consider generating variety of prompts that are unique and covvers all user need.
+            - generate diffrent aspects of the user input and generate prompts based on that.
             - Keep them short, clear, and focused on the key elements (style, colors, subject).
             - Each prompt must be a single concise sentence or phrase.
     
@@ -194,13 +188,10 @@ def get_ai_prompts(user_input: str) -> list:
             - Don’t include any extra text or formatting—just the JSON.
     
             4. **Maintain Consistency**  
-            - Always ensure the prompts align with the user’s request.
-            - Make sure the prompts are creative but match the user’s details.
+            - Always ensure the prompts align with the user’s request and need.
+            - Make sure the prompts are creative and arnt similar each other but match the user’s details.
             - Avoid repeating the same words or phrases in multiple prompts.
-    
-            5. **No Extra Details**  
-            - Don’t add disclaimers or explanations—just deliver the final JSON with the five prompts.
-    
+
             That’s it. Stick to these steps and keep it simple!"""
     
     messages = [
@@ -211,10 +202,15 @@ def get_ai_prompts(user_input: str) -> list:
     try:
         response = chat_client.chat.completions.create(
             messages=messages,
-            model="gpt-4o"
+            model="gemini-2.0-flash"
         )
         ai_response = response.choices[0].message.content
         log_and_print(f"generated AI prompts: {ai_response}")
+        
+        # Remove ```json and ``` if present
+        if ai_response.strip().startswith("```json") and ai_response.strip().endswith("```"):
+            ai_response = ai_response.strip()[7:-3].strip()
+        
         # Try to parse JSON response
         try:
             result = json.loads(ai_response)
@@ -229,6 +225,74 @@ def get_ai_prompts(user_input: str) -> list:
         
     except Exception as e:
         log_and_print(f"Error getting AI prompts: {e}")
+        return []
+
+def get_note_cover_prompts(user_input: str) -> list:
+    """Get note cover image prompts from AI with specific instructions."""
+    log_and_print(f"Getting note cover prompts for input: {user_input}")
+    chat_client = Client()
+    
+    system_message = r"""
+        You are notes image cover generator, an AI assistant expert in crafting creative and efficient and optimized  prompts for ai image generators and Midjourney. When a user provides a topic and concept for a note cover image, your task is to generate five unique and optimized prompts. Ensure each prompt effectively incorporates main concepts and keywords of note topic.
+        Uniqueness : Each of the five prompts must be unique and not similar to each other. combinations, and interpretations of the user's input. Vary the artistic styles, settings, moods, and perspectives across the prompts to inspire diverse visual outcomes.
+        Generate a **high-quality prompt** for creating a **minimal, modern, and 3D-style illustration cover image for a knowledge base note, as specified by the user. The cover image should be in a tailored to the note's concept which user give. 
+        1. **Note Concept**  
+        Use the provided note concept as the basis for the visual concept in the prompt.
+
+        2. **Design Requirements**  
+        - **Style**: Minimal, modern, with 3D illustration effects.
+        - **Theme**: The image should visually represent the core idea or focus of the note.
+        - **Color Scheme**: based on the note concept and topic use a suitable and related mood and color theme and Use a clean, professional color palette that complements the modern aesthetic.
+        - **Layout**: Maintain a balanced composition with a focus on simplicity and professionalism and conceptuality.
+        Clarity and Conciseness: Keep each prompt clear, concise, and to the point. Aim for a length of one to two sentences per prompt.
+
+        Midjourney Optimization: Structure the prompts in a way that Midjourney can easily interpret and utilize effectively. Avoid ambiguity and overly complex sentence structures.
+
+        Formatting and Output: Return the five generated prompts as a JSON object with the key "prompts" and an array of strings. Do not include any introductory or explanatory text. The output should strictly adhere to the following JSON format:
+
+        {
+        "prompts": [
+            "prompt1",
+            "prompt2",
+            "prompt3",
+            "prompt4",
+            "prompt5"
+        ]
+        }
+
+        Avoid any repetitive phrases or design concepts across the five prompts to ensure diversity. Your sole output should be the JSON object containing the five prompts."""
+
+    messages = [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": f"Generate 5 creative note cover prompts based on: {user_input}"}
+    ]
+    
+    try:
+        response = chat_client.chat.completions.create(
+            messages=messages,
+            model="gemini-2.0-flash"
+        )
+        ai_response = response.choices[0].message.content
+        log_and_print(f"generated note cover prompts: {ai_response}")
+        
+        # Remove ```json and ``` if present
+        if ai_response.strip().startswith("```json") and ai_response.strip().endswith("```"):
+            ai_response = ai_response.strip()[7:-3].strip()
+        
+        # Try to parse JSON response
+        try:
+            result = json.loads(ai_response)
+            if isinstance(result, dict) and "prompts" in result:
+                return result["prompts"]
+        except json.JSONDecodeError:
+            log_and_print(f"Failed to parse AI response as JSON: {ai_response}")
+            
+        # Fallback: try to extract prompts from text response
+        prompts = [line.strip() for line in ai_response.split('\n') if line.strip()]
+        return prompts[:5]
+        
+    except Exception as e:
+        log_and_print(f"Error getting note cover prompts: {e}")
         return []
 
 @app.route('/', methods=['GET', 'POST'])
@@ -254,6 +318,10 @@ def index():
             prompts = get_ai_prompts(user_input)
             if not prompts:
                 return render_template('index.html', error="Failed to generate AI prompts", user_input=user_input)
+        elif generation_mode == 'note cover':
+            prompts = get_note_cover_prompts(user_input)
+            if not prompts:
+                return render_template('index.html', error="Failed to generate note cover prompts", user_input=user_input)
 
         if prompts:
             folder_path, folder_name = create_folder(user_input)
