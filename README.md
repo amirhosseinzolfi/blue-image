@@ -1,156 +1,205 @@
 
 # AI Image Generator with Flask
 
-Hey there! This project is basically a Flask web app that lets you generate images using a bunch of different AI models. You can type in prompts, pick your favorite model, and get a cool image back—**all in your browser**.
+Hey there! This project is a Flask-powered web app for generating AI images. It supports a variety of models (through `Hugging Face`, OpenAI’s `DALL-E 3` proxy, or `g4f` models like Midjourney, flux, etc.) and includes extra features like background removal, prompt generation, concurrency, and storing your preferences locally.
 
-It also has some neat extras, like:
-- Removing the background of an existing image (using `rembg`).
-- Generating variations of your prompts.
-- Pulling prompts from external APIs (`Dify` or our built-in `g4f` prompt generator).
-- Storing and displaying previously generated images.
-- A handy context menu for each image (like copying the prompt, downloading, or removing the background).
-- Storing your preferences (model, image size, etc.) so you don’t have to keep re-entering them.
+**Why is it cool?**  
+- Type in your prompt and generate images right in your browser.  
+- Switch between multiple models on the fly.  
+- Remove backgrounds from existing images using `rembg`.  
+- Generate multiple images per prompt and store them in a grid view.  
+- Built-in concurrency for faster generation when using multiple prompts.  
+- Grab new prompts from external APIs or have the AI come up with 5 variations (yay creativity!).  
+- Saves your generated images so you can easily browse them in the future.
+
+---
 
 ## Table of Contents
+
 - [AI Image Generator with Flask](#ai-image-generator-with-flask)
   - [Table of Contents](#table-of-contents)
+  - [Project Features](#project-features)
   - [Project Structure](#project-structure)
-  - [Requirements](#requirements)
   - [Installation and Setup](#installation-and-setup)
-  - [Running the App](#running-the-app)
-  - [Usage](#usage)
-    - [Interacting with Images](#interacting-with-images)
-  - [Notes and Tips](#notes-and-tips)
-  - [License](#license)
+  - [Configuration \& Environment Variables](#configuration--environment-variables)
+  - [Usage Guide](#usage-guide)
+  - [Additional Features](#additional-features)
+  - [Troubleshooting \& Common Issues](#troubleshooting--common-issues)
+  - [FAQ](#faq)
+
+---
+
+## Project Features
+
+1. **Multi-Model Support**  
+   - Supports a bunch of text-to-image models: from Hugging Face’s stable diffusion variations, flux, midjourney (via `g4f`), to a custom base URL for DALL-E 3 calls.
+
+2. **Background Removal**  
+   - Quickly remove backgrounds from generated images or any local images with a single click (thanks to `rembg`).
+
+3. **Different Prompt Modes**  
+   - **Standard**: Uses your exact prompt.  
+   - **Using Dify**: Calls a Dify API to generate creative prompts.  
+   - **Image Variation**: Appends “variation 1, 2…” etc. to your prompt.  
+   - **Various AI Prompts**: Generates 5 different prompts automatically via `g4f`.
+
+4. **Concurrent Generation**  
+   - Prompts can be processed in parallel for speed, using `ThreadPoolExecutor`.
+
+5. **Local Image Storage**  
+   - All images are saved in the `static/images` folder and conveniently listed on the home page in descending order (newest first).
+
+6. **UI Goodies**  
+   - Right-click context menu on each image for quick actions (download, copy prompt, remove background).  
+   - Built-in preference storage (localStorage) so you don’t have to keep re-entering your chosen model, size, or mode.  
+   - Hover tooltips showing the prompt for each generated image.
 
 ---
 
 ## Project Structure
 
-Here's a quick look at how the project’s files are organized:
-
 ```
-.
 ├── static
 │   ├── css
-│   │   └── styles.css         # The main CSS for our frontend
+│   │   └── styles.css        # All the styling for the app
 │   ├── js
-│   │   └── scripts.js         # JavaScript for the UI (modal, context menu, etc.)
-│   └── images                 # This folder will hold any generated images
+│   │   └── scripts.js        # Handles modals, context menus, localStorage, etc.
+│   └── images                # Directory for storing the generated images
 ├── templates
-│   └── index.html             # The main HTML template for our app
-├── app.py                     # The main Flask application
-├── requirements.txt           # All the Python libraries we need
-├── LICENSE                    # (Optional) A license file
-└── README.md                  # You are reading this right now
+│   └── index.html            # Main HTML page rendered by Flask
+├── app.py                    # Our main Flask application with all routes
+├── requirements.txt          # All Python dependencies
+├── LICENSE                   # (Optional) You can include a license here
+└── README.md                 # You're reading this right now!
 ```
-
----
-
-## Requirements
-
-You’ll need Python 3.7+ (or higher). The main Python libraries are:
-
-- **Flask** for the web server
-- **requests** for making HTTP calls
-- **Pillow (PIL)** for image handling
-- **rembg** for background removal
-- **huggingface_hub** for HF model inference
-- **openai** for the DALL-E 3 calls (through a custom base URL)
-- **g4f** for alternative text-to-image models
-- plus a few built-in Python modules like `os`, `json`, `logging`, etc.
-
-A full list is in `requirements.txt`.
 
 ---
 
 ## Installation and Setup
 
-1. **Clone or download** this repo.
-2. Open a terminal in the project folder (where `app.py` is).
-3. Create and activate a virtual environment (optional but recommended):
+1. **Clone the repo** or download it as a ZIP.  
+   ```bash
+   git clone https://github.com/yourname/AI-Image-Generator.git
+   cd AI-Image-Generator
+   ```
+2. **Create a virtual environment (optional but recommended)**  
    ```bash
    python -m venv venv
-   source venv/bin/activate   # or venv\Scripts\activate on Windows
+   source venv/bin/activate  # or venv\Scripts\activate on Windows
    ```
-4. Install the dependencies:
+3. **Install dependencies**  
    ```bash
    pip install -r requirements.txt
    ```
+4. **Check or Update environment variables** (if using external APIs). By default, some sample keys are in `app.py`, but you might want to replace them with your own. See the [Configuration](#configuration--environment-variables) section for details.
 
-5. (Optional) If you have any environment-specific API keys (like Dify or custom LLM keys), you can set them up in the code or as environment variables. By default, some sample keys are placed in `app.py`.
-
----
-
-## Running the App
-
-After installing everything, you can fire up the Flask server by doing:
-```bash
-python app.py
-```
-
-This starts your local web server at **http://127.0.0.1:13300**. Pop that address into your browser, and you’ll see the AI Image Generator interface.
+5. **Run the Flask app**  
+   ```bash
+   python app.py
+   ```
+   This will spin up a web server on **http://127.0.0.1:13300**.  
+   Open that in your browser and start generating images.
 
 ---
 
-## Usage
+## Configuration & Environment Variables
 
-1. **Type** in your prompt in the text box at the top (something like: "a futuristic city with neon lights at night").
-2. **Pick** a model from the dropdown. You can try `dall-e-3`, `midjourney`, `flux`, or the default `Stable Diffusion 2.1 Base` from Hugging Face, etc.
-3. **Adjust** the number of images, width, and height.  
-   - For example, set `num_images = 2` to generate two images for the same prompt.
-   - Adjust the size to something like 768x768 if you want square images.
-4. **Select** the generation mode:
-   - `Standard` just uses your prompt directly.
-   - `Using Dify` tries to fetch prompt ideas from a Dify API (if configured).
-   - `Image Variation` appends "variation 1, 2..." etc. to your prompt.
-   - `Various AI Prompts` tries to generate five unique prompts for your given idea using `g4f` chat.
-5. **Hit Generate**. The page will refresh after a short wait, and your newly created images will appear at the bottom.
+A few environment variables or code constants might need adjusting if you’re hooking up real keys:
 
-### Interacting with Images
-- **Click** an image to see it in a larger modal window.
-- **Right-click** (or long-press, on mobile) to open the context menu with these options:
-  1. **Download** the image to your device.
-  2. **Copy Prompt** to your clipboard.
-  3. **Remove Background** using `rembg`.
+- **`dify_api_url`**: Where the Dify API lives. Default is something like `http://localhost/v1/workflows/run`.
+- **`dify_api_key`**: The API key to call Dify endpoints.  
+- **`fresed-20D08BG9uGitZJLn09Rg5VrNjUk3FN`**: Example key for calling DALL-E 3 via custom base URL (`fresedgpt.space`). This obviously won’t work for production unless you have a valid key.
+- **`g4f_client`**: If you have a custom setup for `g4f`, you can configure it accordingly.
+
+You can set them up in the code directly or use environment variables (like with a `.env` file + `python-dotenv`, if you want). If you’re just experimenting locally, the defaults might be good enough.
 
 ---
 
-## Notes and Tips
+## Usage Guide
 
-- All generated images are saved in `static/images`. They’ll remain there unless you manually remove them.
-- If you generate a bunch of images, you can scroll through them in the grid. The newest are shown first.
-- Some models (like `dall-e-3` or `flux`) may need special keys or might not work if your environment is not properly set up. If that happens, check your credentials or code in `app.py`.
-- The background removal feature saves the new image as a `.png` file with `_no_bg.png` appended to the original image filename. It also shows up in the grid with the updated preview.
+1. **Open the interface**  
+   Go to http://127.0.0.1:13300 in your browser (or the IP/port you specified).
+
+2. **Enter a prompt**  
+   For example, “A purple robotic cat floating in space, cartoon style”.
+
+3. **Choose your Model**  
+   - `dall-e-3` (through g4f or the custom proxy in `app.py`)  
+   - `midjourney` (again, through g4f)  
+   - `flux`, `sdxl`, `sd-xl-lora`, and other variants from the dropdown.  
+   - Or a Hugging Face model like `stabilityai/stable-diffusion-2-1-base`.
+
+4. **Select the Number of Images, Width, and Height**  
+   - `num_images`: 1, 2, 3, or up to 10.  
+   - `width` & `height`: in multiples of 64, e.g., 512×512 or 1024×768.  
+
+5. **Choose the Generation Mode**  
+   - **Standard**: Uses exactly your prompt.  
+   - **Dify**: Calls your Dify API to get a curated list of prompts.  
+   - **Image Variation**: Appends "variation 1, 2, etc.” to your prompt.  
+   - **Various AI Prompts**: Asks g4f to produce 5 unique prompts for your description.
+
+6. **Hit “Generate”**  
+   - The app might show a quick “Processing Images...” alert, then refresh with your new images.  
+   - Scroll down to see the newly generated images. They appear in a grid with the newest ones at the top.
+
+7. **Interact with Images**  
+   - **Left-click**: Opens a bigger preview in a modal.  
+   - **Right-click** (desktop) / hold-press (mobile): Brings up a context menu with:
+     - **Download**: Saves the image to your computer.  
+     - **Copy Prompt**: Copies the associated prompt to your clipboard.  
+     - **Remove Background**: Uses `rembg` to remove the background and saves a separate `_no_bg.png` version.
 
 ---
 
-## License
+## Additional Features
 
-This project is under the [MIT License](./LICENSE) if you choose to add the included file. Feel free to use it, modify it, and share it.
+1. **Concurrency**  
+   - The code uses `concurrent.futures.ThreadPoolExecutor` so multiple prompts can be processed faster. This is super helpful if you pass multiple items to generate at once.
 
----
-```
+2. **Previous Images**  
+   - On startup or refresh, the app looks inside `static/images` for all previously generated images and displays them. So if you relaunch or refresh, your older images don’t vanish.
 
----
+3. **Prompt Parsing**  
+   - If using Dify, the code tries to parse JSON from that API. If it fails, it gracefully handles it.  
+   - If using `Various AI Prompts`, it uses g4f to try generating a JSON with five prompts. If that fails, it splits the lines so you at least get something.
 
-## **requirements.txt**
-
-```txt
-Flask==2.3.3
-requests==2.31.0
-Pillow==9.5.0
-rembg==2.0.32
-huggingface_hub==0.17.3
-openai==0.27.8
-# g4f is not officially on PyPI at the moment; 
-# you might need to install it from its GitHub or a custom repository.
-# If you do have it, specify the version or 
-# just add the line below (knowing you have to fetch it another way):
-g4f
-```
-
-*(You might have to install `g4f` from GitHub or a local file, depending on how you set it up. If you encounter errors about `g4f`, look up their docs or GitHub page for installation info.)*
+4. **Preference Memory**  
+   - Your selected model, number of images, dimensions, and generation mode are remembered in your browser’s localStorage. So if you come back later, your settings are still there.
 
 ---
+
+## Troubleshooting & Common Issues
+
+1. **g4f not found on PyPI**  
+   - The `g4f` library is sometimes installed via GitHub or a custom source. If you see errors like _“No module named g4f”_, check their GitHub page or documentation on how to install it properly.
+
+2. **API Keys or Endpoints Not Working**  
+   - If you’re trying to use Dify or a custom DALL-E 3 URL and get errors, make sure your base URL and API keys are correct in `app.py`.  
+   - Check your logs in the terminal. If the key is invalid, the request might fail or return a 401/403 error.
+
+3. **Large Images / Timeouts**  
+   - Some models might take longer for higher resolutions or bigger batch sizes. If your server times out, you can tweak Flask’s config or try smaller images.
+
+4. **Background Removal Errors**  
+   - The `rembg` library may fail on certain image formats or corrupted images. Double-check that your generated image is valid. Also confirm that `rembg` is installed properly (`pip install rembg`).
+
+5. **Permission Issues (on Linux/Mac)**  
+   - If you see “Permission denied” or can’t save images into `static/images`, ensure that folder has correct read/write permissions.
+
+---
+
+## FAQ
+
+**Q:** **Can I run this on a remote server?**  
+**A:** Absolutely. You can deploy it on any VM or hosting that supports Flask. Just forward port `13300` (or whichever you pick). For production, you might want to use gunicorn, etc.
+
+**Q:** **What about Docker?**  
+**A:** Yes, you can containerize it. Just create a Dockerfile with `FROM python:3.X`, copy your files, install the requirements, and set the container to run `python app.py`. Expose the needed port, done.
+
+**Q:** **Is there a limit to how many images I can create?**  
+**A:** Technically no, but keep in mind your disk space. The images can pile up in `static/images`.
+
+**Q:** **How do I get more advanced prompts, like controlling camera angles or styles?**  
+**A:** Just type them in your prompt! Or let the AI generate them using the “Various AI Prompts” mode. If your chosen model supports a wide variety of keywords (like midjourney or stable diffusion), you can go crazy.
 
