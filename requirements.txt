@@ -1,8 +1,11 @@
-Flask
+Flask==2.3.2
+
 rembg
 Pillow
 huggingface_hub
-g4f
 openai
 requests
 concurrent.futures
+onnxruntime
+"rembg[cli]"
+g4f[all]
