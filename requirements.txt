@@ -1,0 +1,8 @@
+Flask
+rembg
+Pillow
+huggingface_hub
+g4f
+openai
+requests
+concurrent.futures
