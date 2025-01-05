@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Image Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+
+        <form id="imageForm" method="POST">
+            <input type="text" id="user_input" name="user_input" placeholder="text" required>
+            
+            <div class="form-group">
+                <select id="model" name="model">
+                    <optgroup label="g4f Models">
+                        <option value="dall-e-3">dalle3</option>
+                        <option value="midjourney">Midjourney</option>
+                        <option value="flux">Flux</option>
+
+                        <option value="playground-v2.5">playground-v2.5</option>
+                        <option value="flux-pro">flux-pro</option>
+                        <option value="flux-dev">flux-dev</option>
+                        <option value="flux-realism">flux-realism</option>
+                        <option value="flux-anime">flux-anime</option>
+                        <option value="flux-3d">flux-3d</option>
+                        <option value="flux-4o">flux-4o</option>
+                        <option value="sdxl">sdxl</option>
+                        <option value="sdxl-lora">sdxl-lora</option>
+                        <option value="sd-3">sd-3</option>
+                        <option value="sd-3">sd45</option>
+
+                        <option value="any-dark">any-dark</option>
+                    </optgroup>
+                    <optgroup label="Hugging Face Models">
+                        <option value="stabilityai/stable-diffusion-2-1-base">Stable Diffusion 2.1 Base</option>
+                        <option value="black-forest-labs/FLUX.1-dev" selected>FLUX.1-dev</option>
+                        <option value="DeepFloyd/IF-I-XL-v1.0">DeepFloyd IF-I-XL</option>
+                        <option value="lllyasviel/ControlNet">ControlNet</option>
+                        <option value="Animagine/XL">Animagine XL</option>
+                        <option value="stabilityai/sdxl-turbo">sdxl-turbo</option>
+                    </optgroup>
+                </select>
+                
+                <input type="number" id="num_images" name="num_images" min="1" max="10" value="1" placeholder="Number of images per prompt" style="width: 50%;">
+                
+                <input type="number" id="width" name="width" list="width-presets" step="64" value="1024" placeholder="Width (pixels)" style="width: 50%;">
+                <datalist id="width-presets">
+                    <option value="1920">
+                    <option value="1280">
+                    <option value="1024">
+                    <option value="768">
+                </datalist>
+                <input type="number" id="height" name="height" list="height-presets" step="64" value="768" placeholder="Height (pixels)" style="width: 50%;">
+                <datalist id="height-presets">
+                    <option value="1920">
+                    <option value="1280">
+                    <option value="1024">
+                    <option value="768">
+                </datalist>
+                <div class="mode-selector">
+                    <select id="generation_mode" name="generation_mode">
+                        <option value="standard" selected>Standard</option>
+                        <option value="dify">Using Dify</option>
+                        <option value="variation">Image Variation</option>
+                        <option value="various">Various AI Prompts</option>
+                    </select>
+                </div>
+                <input type="submit" value="Generate" class="submit-button">
+
+            </div>
+        </form>
+
+        <div id="alert" class="alert" style="display: none;">
+            <div class="alert-content">
+                <span id="alert-text"></span>
+                
+            </div>
+            <button id="close-alert" class="close-alert" aria-label="Close alert">&times;</button>
+        </div>
+        
+
+        {% if image_prompt_list %}
+            <div class="prompts">
+                <div class="images">
+                    {% for item in image_prompt_list %}
+                        {% for image_path in item.images %}
+                            <div class="image-wrapper">
+                                <img src="{{ url_for('serve_image', filename=image_path) }}" alt="Generated Image" class="preview-image" data-image-path="{{ url_for('download_image', filename=image_path) }}" data-prompt="{{ item.prompt }}">
+                                <div class="tooltip">{{ item.prompt }}</div>
+                            </div>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
+        {% elif error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+    </div>
+
+    <div id="image-modal" class="modal">
+        <span class="close-modal">&times;</span>
+        <img class="modal-content" id="modal-image">
+    </div>
+
+    <div id="context-menu" class="context-menu">
+        <ul>
+            <li id="download-image">Download</li>
+            <li id="copy-prompt">Copy Prompt</li>
+            <li id="remove-bg">Remove Background</li>
+        </ul>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load saved preferences
+            const savedModel = localStorage.getItem('model');
+            const savedNumImages = localStorage.getItem('num_images');
+            const savedWidth = localStorage.getItem('width');
+            const savedHeight = localStorage.getItem('height');
+            const savedGenerationMode = localStorage.getItem('generation_mode');
+
+            if (savedModel) document.getElementById('model').value = savedModel;
+            if (savedNumImages) document.getElementById('num_images').value = savedNumImages;
+            if (savedWidth) document.getElementById('width').value = savedWidth;
+            if (savedHeight) document.getElementById('height').value = savedHeight;
+            if (savedGenerationMode) document.getElementById('generation_mode').value = savedGenerationMode;
+
+            // Save preferences on form submit
+            document.getElementById('imageForm').addEventListener('submit', function() {
+                localStorage.setItem('model', document.getElementById('model').value);
+                localStorage.setItem('num_images', document.getElementById('num_images').value);
+                localStorage.setItem('width', document.getElementById('width').value);
+                localStorage.setItem('height', document.getElementById('height').value);
+                localStorage.setItem('generation_mode', document.getElementById('generation_mode').value);
+            });
+        });
+    </script>
+</body>
+</html>
