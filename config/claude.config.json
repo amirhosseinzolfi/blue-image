@@ -1,0 +1,12 @@
+
+{
+    "claude": {
+        "model": "claude-3.5-sonnet",
+        "preview": true,
+        "enableForAllClients": true,
+        "defaultSettings": {
+            "temperature": 0.7,
+            "maxTokens": 4096
+        }
+    }
+}

@@ -7,5 +7,5 @@ openai
 requests
 concurrent.futures
 onnxruntime
-"rembg[cli]"
+rembg[cli]
 g4f[all]
