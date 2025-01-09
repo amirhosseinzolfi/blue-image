@@ -1,16 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Image Generator</title>
+    <title>مولد تصویر هوش مصنوعی</title>
+    <!-- Add Vazirmatn Font -->
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-Variable-font-face.css" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
     <div class="container">
 
-        <form id="imageForm" method="POST">
-            <input type="text" id="user_input" name="user_input" placeholder="text" required>
+        <form id="imageForm">
+            <input type="text" id="user_input" name="user_input" placeholder="متن را وارد کنید" required>
             
             <div class="form-group">
                 <select id="model" name="model">
@@ -43,7 +45,7 @@
                     </optgroup>
                 </select>
                 
-                <input type="number" id="num_images" name="num_images" min="1" max="10" value="1" placeholder="Number of images per prompt" style="width: 50%;">
+                <input type="number" id="num_images" name="num_images" min="1" max="10" value="1" placeholder="تعداد تصویر برای هر درخواست" style="width: 50%;">
                 
                 <input type="number" id="width" name="width" list="width-presets" step="64" value="1024" placeholder="Width (pixels)" style="width: 50%;">
                 <datalist id="width-presets">
@@ -67,7 +69,7 @@
                         <option value="various">Various AI Prompts</option>
                     </select>
                 </div>
-                <input type="submit" value="Generate" class="submit-button">
+                <input type="submit" value="تولید" class="submit-button">
 
             </div>
         </form>
@@ -77,7 +79,7 @@
                 <span id="alert-text"></span>
                 
             </div>
-            <button id="close-alert" class="close-alert" aria-label="Close alert">&times;</button>
+            <button id="close-alert" class="close-alert" aria-label="بستن اعلان">&times;</button>
         </div>
         
 
@@ -87,12 +89,22 @@
                     {% for item in image_prompt_list %}
                         {% for image_path in item.images %}
                             <div class="image-wrapper">
-                                <img src="{{ url_for('serve_image', filename=image_path) }}" alt="Generated Image" class="preview-image" data-image-path="{{ url_for('download_image', filename=image_path) }}" data-prompt="{{ item.prompt }}">
+                                <img src="{{ url_for('serve_image', filename=image_path) }}" 
+                                     alt="Generated Image" 
+                                     class="preview-image" 
+                                     data-image-path="{{ url_for('download_image', filename=image_path) }}" 
+                                     data-prompt="{{ item.prompt }}">
                                 <div class="tooltip">{{ item.prompt }}</div>
                             </div>
                         {% endfor %}
                     {% endfor %}
                 </div>
+                {% if has_more %}
+                <div id="loading-indicator" style="text-align: center; padding: 20px; display: none;">
+                    <div class="spinner"></div>
+                    <p>در حال بارگذاری تصاویر بیشتر...</p>
+                </div>
+                {% endif %}
             </div>
         {% elif error %}
             <p class="error">{{ error }}</p>
@@ -101,14 +113,17 @@
 
     <div id="image-modal" class="modal">
         <span class="close-modal">&times;</span>
-        <img class="modal-content" id="modal-image">
+        <div class="modal-content-wrapper">
+            <img class="modal-content" id="modal-image">
+        </div>
     </div>
 
     <div id="context-menu" class="context-menu">
         <ul>
-            <li id="download-image">Download</li>
-            <li id="copy-prompt">Copy Prompt</li>
-            <li id="remove-bg">Remove Background</li>
+            <li id="download-image">دانلود</li>
+            <li id="copy-prompt">کپی دستور</li>
+            <li id="remove-bg">حذف پس‌زمینه</li>
+            <li id="delete-image" class="delete-option">حذف تصویر</li>
         </ul>
     </div>
 
@@ -136,6 +151,10 @@
                 localStorage.setItem('height', document.getElementById('height').value);
                 localStorage.setItem('generation_mode', document.getElementById('generation_mode').value);
             });
+
+            {% if success_message %}
+                showAlert("{{ success_message }}", 'success', 5000);
+            {% endif %}
         });
 
         // Ensure "note cover" is handled if any specific frontend logic is required

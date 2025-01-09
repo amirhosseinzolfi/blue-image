@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file, send_from_directory, jsonify
+from flask import Flask, render_template, request, send_file, send_from_directory, jsonify, session, redirect, url_for
 from rembg import remove
 from PIL import Image
 import os
@@ -11,8 +11,11 @@ import logging
 from huggingface_hub import InferenceClient
 from g4f.client import Client
 from openai import OpenAI
+from werkzeug.serving import WSGIRequestHandler
+import time
 
 app = Flask(__name__)
+app.secret_key = "change_this_secret_key"  # Needed for session usage
 
 client = InferenceClient()
 dify_api_url = "http://localhost/v1/workflows/run"
@@ -22,25 +25,52 @@ g4f_client = Client()
 
 logging.basicConfig(level=logging.INFO)
 
+# Increase server timeout
+WSGIRequestHandler.protocol_version = "HTTP/1.1"
+
+# Add request timeout configuration
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour session lifetime
+
+# Add timeout to requests
+REQUESTS_TIMEOUT = 30  # 30 seconds timeout for external requests
+
 def log_and_print(message):
     logging.info(message)
     print(message)
 
 def generate_image_dalle(prompt, index, folder_path, image_number):
+    time.sleep(2)  # Add delay before generation
     log_and_print(f"Generating image with DALL-E 3 for prompt: {prompt}")
-    response = dalle_client.images.generate(model="dall-e-3", prompt=prompt, size="1024x768")
+    response = dalle_client.images.generate(
+        model="dall-e-3", 
+        prompt=prompt, 
+        size="1024x768",
+        timeout=REQUESTS_TIMEOUT
+    )
+    time.sleep(1)  # Add delay after generation
     image_url = response.data[0].url
     return save_image_from_url(image_url, prompt, index, folder_path, "dalle", image_number)
 
 def generate_image_g4f(prompt, index, folder_path, model, image_number, width, height):
+    time.sleep(2)  # Add delay before generation
     log_and_print(f"Generating image with {model} for prompt: {prompt}")
-    response = g4f_client.images.generate(model=model, prompt=prompt, response_format="url", width=width, height=height)
+    response = g4f_client.images.generate(
+        model=model, 
+        prompt=prompt, 
+        response_format="url", 
+        width=width, 
+        height=height,
+        timeout=REQUESTS_TIMEOUT
+    )
+    time.sleep(1)  # Add delay after generation
     image_url = response.data[0].url
     return save_image_from_url(image_url, prompt, index, folder_path, model, image_number)
 
 def save_image_from_url(image_url, prompt, index, folder_path, model, image_number):
+    time.sleep(1)  # Add delay before download
     log_and_print(f"Saving image from URL: {image_url}")
-    image_response = requests.get(image_url)
+    image_response = requests.get(image_url, timeout=REQUESTS_TIMEOUT)
     base_filename = f"{prompt.replace(' ', '_')}_{index+1}_{model}_{image_number}.jpeg"
     image_filename = os.path.join(folder_path, base_filename)
     
@@ -105,7 +135,7 @@ def get_dify_prompts(user_input):
         "response_mode": "blocking",
         "user": "abc-123"
     }
-    response = requests.post(dify_api_url, headers=headers, json=data)
+    response = requests.post(dify_api_url, headers=headers, json=data, timeout=REQUESTS_TIMEOUT)
     if response.status_code == 200:
         response_data = response.json()
         if response_data.get("data", {}).get("status") == "failed":
@@ -208,7 +238,7 @@ def get_ai_prompts(user_input: str) -> list:
         log_and_print(f"generated AI prompts: {ai_response}")
         
         # Remove ```json and ``` if present
-        if ai_response.strip().startswith("```json") and ai_response.strip().endswith("```"):
+        if (ai_response.strip().startswith("```json") and ai_response.strip().endswith("```")):
             ai_response = ai_response.strip()[7:-3].strip()
         
         # Try to parse JSON response
@@ -295,6 +325,42 @@ def get_note_cover_prompts(user_input: str) -> list:
         log_and_print(f"Error getting note cover prompts: {e}")
         return []
 
+IMAGES_PER_PAGE = 12  # Number of images to load per batch
+
+@app.route('/load_images', methods=['GET'])
+def load_images():
+    page = int(request.args.get('page', 1))
+    offset = (page - 1) * IMAGES_PER_PAGE
+    
+    image_list = load_image_batch(offset, IMAGES_PER_PAGE)
+    return jsonify({
+        'success': True,
+        'has_more': len(image_list) == IMAGES_PER_PAGE,
+        'images': image_list
+    })
+
+def load_image_batch(offset, limit):
+    image_list = []
+    static_dir = os.path.join(app.root_path, 'images')
+    
+    all_images = []
+    for root, dirs, files in os.walk(static_dir):
+        for file in files:
+            if file.endswith((".jpeg", ".png")):
+                file_path = os.path.join(root, file)
+                created_time = os.path.getctime(file_path)
+                relative_path = os.path.relpath(file_path, static_dir).replace('\\', '/')
+                prompt = file.rsplit('_', 3)[0].replace('_', ' ')
+                all_images.append({
+                    'prompt': prompt,
+                    'images': [relative_path],
+                    'created_time': created_time
+                })
+    
+    # Sort by creation time and apply pagination
+    sorted_images = sorted(all_images, key=lambda x: x['created_time'], reverse=True)
+    return sorted_images[offset:offset + limit]
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -307,36 +373,74 @@ def index():
 
         log_and_print(f"Received POST request with user_input: {user_input}, model: {model}, num_images: {num_images}, width: {width}, height: {height}, mode: {generation_mode}")
 
-        prompts = []
+        session['status'] = 'در حال آماده‌سازی'
+        
         if generation_mode == 'standard':
             prompts = [user_input]
         elif generation_mode == 'dify':
+            session['status'] = 'در حال دریافت دستورات از Dify'
             prompts = get_dify_prompts(user_input)
         elif generation_mode == 'variation':
+            session['status'] = 'در حال ایجاد تنوع'
             prompts = [f"{user_input} variation {i+1}" for i in range(num_images)]
         elif generation_mode == 'various':
+            session['status'] = 'در حال تولید دستورات هوشمند'
             prompts = get_ai_prompts(user_input)
             if not prompts:
-                return render_template('index.html', error="Failed to generate AI prompts", user_input=user_input)
+                session['error'] = "ناموفق در تولید دستورات هوش مصنوعی"
+                session['user_input'] = user_input
+                return redirect(url_for('index'))
         elif generation_mode == 'note cover':
+            session['status'] = 'در حال تولید طرح جلد'
             prompts = get_note_cover_prompts(user_input)
             if not prompts:
-                return render_template('index.html', error="Failed to generate note cover prompts", user_input=user_input)
+                session['error'] = "ناموفق در تولید دستورات طرح جلد"
+                session['user_input'] = user_input
+                return redirect(url_for('index'))
 
         if prompts:
+            session['status'] = 'در حال تولید تصاویر'
             folder_path, folder_name = create_folder(user_input)
             image_prompt_list = generate_images(prompts, folder_path, model, num_images, width, height)
+            
+            session['status'] = 'در حال ذخیره‌سازی نتایج'
             previous_images = load_previous_images()
             image_prompt_list.extend(previous_images)
             image_prompt_list.sort(key=lambda x: x.get('created_time', 0), reverse=True)
-            return render_template('index.html', image_prompt_list=image_prompt_list, user_input=user_input)
-        else:
-            return render_template('index.html', error="No prompts generated", user_input=user_input)
+            
+            session['status'] = 'اتمام فرآیند'
+            session['image_prompt_list'] = image_prompt_list
+            session['user_input'] = user_input
+            session.pop('status', None)  # Clear status before redirect
+            return render_template('index.html',
+                                   image_prompt_list=[],
+                                   error=None)
 
-    # Load previous images on GET request
-    previous_images = load_previous_images()
-    log_and_print("Loaded previous images")
-    return render_template('index.html', image_prompt_list=previous_images)
+    # Handle GET request
+    initial_images = load_image_batch(0, IMAGES_PER_PAGE)
+    return render_template('index.html', 
+                         image_prompt_list=initial_images,
+                         has_more=len(initial_images) == IMAGES_PER_PAGE)
+
+@app.route('/ajax_generate', methods=['POST'])
+def ajax_generate():
+    user_input = request.form['user_input']
+    model = request.form.get('model', 'stabilityai/stable-diffusion-2-1-base')
+    num_images = int(request.form.get('num_images', 1))
+    width = int(request.form.get('width', 512))
+    height = int(request.form.get('height', 512))
+    generation_mode = request.form.get('generation_mode', 'standard')
+
+    # ...same generation logic as in index()...
+    prompts = [user_input]  # or fill based on mode, e.g. get_dify_prompts, etc.
+    folder_path, folder_name = create_folder(user_input)
+    image_prompt_list = generate_images(prompts, folder_path, model, num_images, width, height)
+
+    # Return JSON with newly generated images only:
+    return jsonify({
+        'success': True,
+        'image_prompt_list': image_prompt_list
+    })
 
 def generate_images(prompts, folder_path, model, num_images, width, height):
     image_prompt_list = []
@@ -364,44 +468,89 @@ def load_previous_images():
                 created_time = os.path.getctime(os.path.join(root, file))
                 image_prompt_list.append({'prompt': prompt, 'images': [relative_path], 'created_time': created_time})
     image_prompt_list.sort(key=lambda x: x['created_time'], reverse=True)
-    log_and_print(f"Loaded previous images: {image_prompt_list}")
+    log_and_print("تصاویر قبلی بارگذاری شد")
     return image_prompt_list
 
 @app.route('/remove_bg', methods=['POST'])
 def remove_bg():
     image_path = request.json.get('image_path')
     if not image_path:
-        return jsonify({'success': False, 'error': 'No image path provided'})
+        return jsonify({'success': False, 'error': 'مسیر تصویر ارائه نشده'})
 
     try:
-        # Correct the path to the image
+        log_and_print("شروع فرآیند حذف پس‌زمینه")
+        time.sleep(2)  # Initial delay
+        
         image_path = image_path.replace('/download/', '')
         input_path = os.path.join('images', image_path)
-        output_path = input_path.replace('.jpeg', '_no_bg.png')
-
+        
+        log_and_print("در حال بارگذاری تصویر")
+        time.sleep(1)  # Loading delay
         input_image = Image.open(input_path)
+        
+        log_and_print("در حال پردازش و حذف پس‌زمینه")
+        time.sleep(2)  # Processing delay
         output_image = remove(input_image)
+        
+        filename_without_ext = os.path.splitext(image_path)[0]
+        output_filename = f"{filename_without_ext}_no_bg.png"
+        output_path = os.path.join('images', output_filename)
+        
+        log_and_print("در حال ذخیره‌سازی تصویر نهایی")
+        time.sleep(1)  # Saving delay
         output_image.save(output_path)
 
-        return jsonify({'success': True, 'new_image_path': output_path})
+        time.sleep(1)  # Final delay
+        return jsonify({
+            'success': True, 
+            'new_image_path': output_filename
+        })
     except Exception as e:
-        log_and_print(f"Error removing background: {e}")
+        log_and_print(f"خطا در حذف پس‌زمینه: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/delete_image', methods=['POST'])
+def delete_image():
+    image_path = request.json.get('image_path')
+    if not image_path:
+        return jsonify({'success': False, 'error': 'مسیر تصویر ارائه نشده'})
+
+    try:
+        # Clean up the path
+        image_path = image_path.replace('/download/', '')
+        full_path = os.path.join('images', image_path)
+        
+        # Check if file exists
+        if os.path.exists(full_path):
+            os.remove(full_path)
+            log_and_print(f"Image deleted: {full_path}")
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'فایل یافت نشد'})
+    except Exception as e:
+        log_and_print(f"Error deleting image: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
-    log_and_print(f"Serving image: {filename}")
+    log_and_print(f"در حال ارائه تصویر: {filename}")
     return send_from_directory('images', filename)
 
 @app.route('/download/<path:filename>')
 def download_image(filename):
-    log_and_print(f"Downloading image: {filename}")
+    log_and_print(f"در حال دانلود تصویر: {filename}")
     return send_file(os.path.join('images', filename), as_attachment=True)
 
 if __name__ == '__main__':
     if not os.path.exists('images'):
         os.makedirs('images')
-    log_and_print("Starting app on port 13300")
+    log_and_print("راه‌اندازی برنامه در پورت 13300")
 
     port = int(os.environ.get("PORT", 13300))
-    app.run(debug=True, host='0.0.0.0', port=port)
+    app.run(
+        debug=True, 
+        host='0.0.0.0', 
+        port=port,
+        threaded=True,
+        request_handler=WSGIRequestHandler
+    )
