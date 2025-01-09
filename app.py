@@ -398,3 +398,10 @@ def download_image(filename):
     log_and_print(f"Downloading image: {filename}")
     return send_file(os.path.join('images', filename), as_attachment=True)
 
+if __name__ == '__main__':
+    if not os.path.exists('images'):
+        os.makedirs('images')
+    log_and_print("Starting app on port 13300")
+
+    port = int(os.environ.get("PORT", 13300))
+    app.run(debug=True, host='0.0.0.0', port=port)
