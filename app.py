@@ -12,6 +12,8 @@ from huggingface_hub import InferenceClient
 from g4f.client import Client
 from openai import OpenAI
 from werkzeug.serving import WSGIRequestHandler
+from werkzeug.utils import secure_filename
+import imghdr
 import time
 
 app = Flask(__name__)
@@ -34,6 +36,12 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour session lifetime
 
 # Add timeout to requests
 REQUESTS_TIMEOUT = 30  # 30 seconds timeout for external requests
+
+# Add allowed image types
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def log_and_print(message):
     logging.info(message)
@@ -442,6 +450,41 @@ def ajax_generate():
         'image_prompt_list': image_prompt_list
     })
 
+@app.route('/upload_images', methods=['POST'])
+def upload_images():
+    if 'images' not in request.files:
+        return jsonify({'success': False, 'error': 'No files uploaded'})
+
+    files = request.files.getlist('images')
+    uploaded_images = []
+
+    for file in files:
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            # Add timestamp to prevent filename collisions
+            name, ext = os.path.splitext(filename)
+            timestamp = int(time.time() * 1000)
+            new_filename = f"{name}_{timestamp}{ext}"
+            
+            filepath = os.path.join('images', new_filename)
+            file.save(filepath)
+            
+            uploaded_images.append({
+                'path': new_filename,
+                'name': name
+            })
+
+    if uploaded_images:
+        return jsonify({
+            'success': True,
+            'images': uploaded_images
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'No valid images uploaded'
+        })
+
 def generate_images(prompts, folder_path, model, num_images, width, height):
     image_prompt_list = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -508,6 +551,50 @@ def remove_bg():
     except Exception as e:
         log_and_print(f"خطا در حذف پس‌زمینه: {e}")
         return jsonify({'success': False, 'error': str(e)})
+@app.route('/variation_image', methods=['POST'])
+def variation_image():
+    data = request.get_json()
+    image_path = data.get('image_path')
+    num_variations = int(data.get('num_variations', 1))
+
+    # Example: real disk path to the user's selected image
+    # Make sure you properly resolve 'image_path' from your saved images folder
+    real_image_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(image_path))
+
+    generated_images = []
+    try:
+        # *** Insert your 'g4f' or 'OpenAIChat' code here ***
+        # For each variation, call create_variation:
+
+        from g4f.client import Client
+        from g4f.Provider import OpenaiChat
+
+        client = Client(image_provider=OpenaiChat)
+
+        for i in range(num_variations):
+            with open(real_image_path, 'rb') as f:
+                response = client.images.create_variation(
+                    image=f,
+                    model="dall-e-3",
+                    # Other optional params
+                )
+
+            # e.g., response.data[0].url => a publicly hosted image
+            # Download or save it to your server if you need to store the file
+            image_url = response.data[0].url
+            # Suppose you do a local download:
+            # new_filename = save_image_from_url(image_url) # Implement your own logic
+            # generated_images.append({"path": new_filename, "prompt": "Your Variation Prompt"})
+
+            # Or if you keep them only as URLs (not downloaded):
+            generated_images.append({
+                "path": image_url,
+                "prompt": f"Variation of {os.path.basename(image_path)}"
+            })
+
+        return jsonify({"success": True, "generated_images": generated_images})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 @app.route('/delete_image', methods=['POST'])
 def delete_image():

@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function () {
-    // Add mode selector handling
+    // References to DOM elements
     const modeSelector = document.getElementById('generation_mode');
     const form = document.getElementById('imageForm');
     const alertBox = document.getElementById('alert');
@@ -12,13 +12,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const downloadImageOption = document.getElementById('download-image');
     const copyPromptOption = document.getElementById('copy-prompt');
     const removeBgOption = document.getElementById('remove-bg');
+    const variationImageOption = document.getElementById('variation-image'); // NEW
     const deleteImageOption = document.getElementById('delete-image');
+
     let currentImagePath = '';
     let currentPrompt = '';
 
     // Load saved mode preference
     const savedMode = localStorage.getItem('generation_mode');
-    if (savedMode) {
+    if (savedMode && modeSelector) {
         modeSelector.value = savedMode;
     }
 
@@ -33,28 +35,30 @@ document.addEventListener('DOMContentLoaded', function () {
     if (savedNumImages) document.getElementById('num_images').value = savedNumImages;
     if (savedWidth) document.getElementById('width').value = savedWidth;
     if (savedHeight) document.getElementById('height').value = savedHeight;
-    if (savedGenerationMode) document.getElementById('generation_mode').value = savedGenerationMode;
+    if (savedGenerationMode && modeSelector) {
+        document.getElementById('generation_mode').value = savedGenerationMode;
+    }
 
     // Save mode preference when changed
-    modeSelector.addEventListener('change', function() {
-        localStorage.setItem('generation_mode', this.value);
-    });
+    if (modeSelector) {
+        modeSelector.addEventListener('change', function() {
+            localStorage.setItem('generation_mode', this.value);
+        });
+    }
 
+    // Show alert helper
     function showAlert(message, type, duration = null) {
-        const alertBox = document.getElementById('alert');
-        const alertText = document.getElementById('alert-text');
-
         // Clear any existing fade-out timeouts
         if (alertBox.timeoutId) {
             clearTimeout(alertBox.timeoutId);
         }
 
-        // Update alert content
+        // Update alert content & display
         alertText.textContent = message;
         alertBox.className = `alert ${type} show`;
         alertBox.style.display = 'flex';
 
-        // Only set auto-hide for success messages or when duration is specified
+        // Auto-hide logic
         if (duration && (type === 'success' || type === 'error')) {
             alertBox.timeoutId = setTimeout(() => {
                 alertBox.classList.remove('show');
@@ -65,37 +69,32 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Form submit => image generation
     form.addEventListener('submit', function (event) {
         event.preventDefault();
         
-        const mode = document.getElementById('generation_mode').value;
+        const mode = modeSelector ? modeSelector.value : 'standard';
         const steps = [
-            {
-                delay: 0,
-                message: 'شروع فرآیند تولید تصویر...', 
-                type: 'info'
-            },
-            {
-                delay: 2000,
-                message: mode === 'standard' ? 'در حال تولید تصویر...' :
-                         mode === 'note cover' ? 'در حال تولید طرح جلد...' :
-                         mode === 'variation' ? 'در حال ایجاد تنوع تصاویر...' :
-                         mode === 'various' ? 'در حال تولید نسخه‌های مختلف...' :
-                         'در حال پردازش...',
-                type: 'info'
+            { delay: 0,    message: 'شروع فرآیند تولید تصویر...', type: 'info' },
+            { delay: 2000, message: 
+                mode === 'standard'  ? 'در حال تولید تصویر...' :
+                mode === 'note cover' ? 'در حال تولید طرح جلد...' :
+                mode === 'variation' ? 'در حال ایجاد تنوع تصاویر...' :
+                mode === 'various'   ? 'در حال تولید نسخه‌های مختلف...' :
+                                        'در حال پردازش...',
+              type: 'info'
             }
         ];
 
-        // Process main steps
+        // Show step-by-step alerts
         steps.forEach(step => {
             setTimeout(() => {
                 showAlert(step.message, step.type);
             }, step.delay);
         });
 
-        // Add form data and submit
+        // AJAX form submit
         setTimeout(() => {
-            // Instead of form.submit(), do an AJAX fetch
             const formData = new FormData(form);
             fetch('/ajax_generate', {
                 method: 'POST',
@@ -107,19 +106,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     const imagesContainer = document.querySelector('.images');
                     data.image_prompt_list.forEach(item => {
                         item.images.forEach(imgPath => {
-                            // Create a new wrapper
+                            // Create wrapper & image
                             const wrapper = document.createElement('div');
                             wrapper.className = 'image-wrapper';
-                            // Create new image element
+
                             const newImg = document.createElement('img');
                             newImg.src = `/images/${imgPath}`;
                             newImg.className = 'preview-image';
                             newImg.dataset.imagePath = `/download/${imgPath}`;
                             newImg.dataset.prompt = item.prompt;
-                            // Create tooltip
+
+                            // Tooltip
                             const tooltip = document.createElement('div');
                             tooltip.className = 'tooltip';
                             tooltip.textContent = item.prompt;
+
                             wrapper.appendChild(newImg);
                             wrapper.appendChild(tooltip);
                             imagesContainer.insertBefore(wrapper, imagesContainer.firstChild);
@@ -138,34 +139,31 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 2500);
     });
 
+    // Close alert
     closeAlertButton.addEventListener('click', function () {
         alertBox.style.display = 'none';
     });
 
+    // Image preview click => open modal
     document.querySelectorAll('.preview-image').forEach(image => {
         image.addEventListener('click', function () {
-            const modal = document.getElementById('image-modal');
-            const modalImg = document.getElementById('modal-image');
-            
-            modalImg.src = this.src;
+            modalImage.src = this.src;
             modal.style.display = 'block';
             modal.classList.add('show');
-            
-            // Prevent body scroll when modal is open
-            document.body.style.overflow = 'hidden';
+            document.body.style.overflow = 'hidden'; // Prevent body scroll
         });
     });
 
+    // Close modal (X button)
     closeModal.addEventListener('click', function () {
         modal.classList.remove('show');
         setTimeout(() => {
             modal.style.display = 'none';
-            // Restore body scroll
             document.body.style.overflow = '';
         }, 300);
     });
 
-    // Close modal on outside click
+    // Close modal if clicked outside image
     modal.addEventListener('click', function (e) {
         if (e.target === modal) {
             modal.classList.remove('show');
@@ -176,11 +174,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Prevent modal close when clicking on image
+    // Prevent modal close on image click
     document.querySelector('.modal-content').addEventListener('click', function (e) {
         e.stopPropagation();
     });
 
+    // Right-click on any .preview-image => open context menu
     document.querySelectorAll('.preview-image').forEach(image => {
         image.addEventListener('contextmenu', function (event) {
             event.preventDefault();
@@ -192,11 +191,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const windowWidth = window.innerWidth;
             const windowHeight = window.innerHeight;
 
-            // Get mouse position adjusted for scrolling
             let posX = event.clientX + window.scrollX;
             let posY = event.clientY + window.scrollY;
 
-            // Adjust position to ensure the menu doesn't go out of bounds
             if (posX + menuWidth > windowWidth + window.scrollX) {
                 posX = windowWidth + window.scrollX - menuWidth;
             }
@@ -210,10 +207,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
+    // Close modal by close button
     closeModal.addEventListener('click', function () {
         modal.style.display = 'none';
     });
 
+    // Hide context menu if clicked elsewhere
     window.addEventListener('click', function (event) {
         if (event.target === modal || event.target === closeModal) {
             modal.style.display = 'none';
@@ -222,47 +221,39 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    // --------------------
+    // Context Menu Options
+    // --------------------
+
+    // 1) Download
     downloadImageOption.addEventListener('click', function () {
         window.location.href = currentImagePath;
         contextMenu.style.display = 'none';
     });
 
+    // 2) Copy Prompt
     copyPromptOption.addEventListener('click', function () {
-        navigator.clipboard.writeText(currentPrompt).then(() => {
-            showAlert('دستور کپی شد!', 'success', 4000);
-        }).catch(err => {
-            showAlert('ناموفق در کپی دستور.', 'error', 4000);
-        });
+        navigator.clipboard.writeText(currentPrompt)
+            .then(() => {
+                showAlert('دستور کپی شد!', 'success', 4000);
+            })
+            .catch(err => {
+                showAlert('ناموفق در کپی دستور.', 'error', 4000);
+            });
         contextMenu.style.display = 'none';
     });
 
+    // 3) Remove Background
     removeBgOption.addEventListener('click', function () {
         const bgRemovalSteps = [
-            {
-                delay: 0,
-                message: 'شروع فرآیند حذف پس‌زمینه...',
-                type: 'info'
-            },
-            {
-                delay: 2000,
-                message: 'در حال بارگیری تصویر...',
-                type: 'info'
-            },
-            {
-                delay: 4000,
-                message: 'در حال تحلیل تصویر...',
-                type: 'info'
-            },
-            {
-                delay: 6000,
-                message: 'در حال پردازش و حذف پس‌زمینه...',
-                type: 'info'
-            }
+            { delay: 0,    message: 'شروع فرآیند حذف پس‌زمینه...',        type: 'info' },
+            { delay: 2000, message: 'در حال بارگیری تصویر...',           type: 'info' },
+            { delay: 4000, message: 'در حال تحلیل تصویر...',             type: 'info' },
+            { delay: 6000, message: 'در حال پردازش و حذف پس‌زمینه...',   type: 'info' }
         ];
 
         contextMenu.style.display = 'none';
 
-        // Process background removal steps
         bgRemovalSteps.forEach(step => {
             setTimeout(() => {
                 showAlert(step.message, step.type);
@@ -271,9 +262,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         fetch('/remove_bg', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image_path: currentImagePath })
         })
         .then(response => {
@@ -282,32 +271,29 @@ document.addEventListener('DOMContentLoaded', function () {
         })
         .then(data => {
             if (data.success) {
-                // Create new image wrapper and image element
+                // Insert new "background-removed" image
                 const imagesContainer = document.querySelector('.images');
                 const imageWrapper = document.createElement('div');
                 imageWrapper.className = 'image-wrapper';
-                
+
                 const newImage = document.createElement('img');
                 newImage.className = 'preview-image';
                 const cacheBuster = Date.now();
                 newImage.src = `/images/${data.new_image_path}?t=${cacheBuster}`;
-                newImage.setAttribute('data-image-path', `/download/${data.new_image_path}`);
-                newImage.setAttribute('data-prompt', `${currentPrompt} (بدون پس‌زمینه)`);
-                
-                // Add loading event for the new image
+                newImage.dataset.imagePath = `/download/${data.new_image_path}`;
+                newImage.dataset.prompt = `${currentPrompt} (بدون پس‌زمینه)`;
+
                 newImage.onload = function() {
                     showAlert('پس‌زمینه با موفقیت حذف شد!', 'success', 4000);
                 };
-
-                // Add error event for the new image
                 newImage.onerror = function() {
                     showAlert('خطا در بارگذاری تصویر جدید.', 'error', 4000);
                 };
-                
+
                 const tooltip = document.createElement('div');
                 tooltip.className = 'tooltip';
                 tooltip.textContent = `${currentPrompt} (بدون پس‌زمینه)`;
-                
+
                 imageWrapper.appendChild(newImage);
                 imageWrapper.appendChild(tooltip);
                 imagesContainer.insertBefore(imageWrapper, imagesContainer.firstChild);
@@ -323,18 +309,75 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
+    // 4) Image Variation (NEW)
+    variationImageOption.addEventListener('click', function () {
+        contextMenu.style.display = 'none';
+        // Show immediate alert
+        showAlert('در حال تولید واریاسیون...', 'info');
+        
+        // Example: using num_images as the count of variations
+        const numVariations = document.getElementById('num_images').value || 1;
+
+        fetch('/variation_image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                image_path: currentImagePath,
+                num_variations: numVariations
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const imagesContainer = document.querySelector('.images');
+                // Insert each new variation image
+                data.generated_images.forEach(item => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'image-wrapper';
+
+                    const newImg = document.createElement('img');
+                    // If your backend returns a local path: /images/{filename}
+                    // or if it returns a public URL from OpenAI, adapt accordingly:
+                    newImg.src = item.path.startsWith('http') ? item.path : `/images/${item.path}`;
+                    newImg.className = 'preview-image';
+                    newImg.dataset.imagePath = item.path.startsWith('http')
+                        ? item.path
+                        : `/download/${item.path}`;
+                    newImg.dataset.prompt = item.prompt || 'Image Variation';
+
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'tooltip';
+                    tooltip.textContent = newImg.dataset.prompt;
+
+                    wrapper.appendChild(newImg);
+                    wrapper.appendChild(tooltip);
+                    imagesContainer.insertBefore(wrapper, imagesContainer.firstChild);
+
+                    attachImageEventListeners(newImg);
+                });
+
+                showAlert('واریاسیون جدید با موفقیت تولید شد!', 'success', 5000);
+            } else {
+                showAlert(`خطا در تولید واریاسیون: ${data.error}`, 'error', 4000);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showAlert('خطا در برقراری ارتباط برای واریاسیون', 'error', 4000);
+        });
+    });
+
+    // 5) Delete Image
     deleteImageOption.addEventListener('click', function () {
         fetch('/delete_image', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image_path: currentImagePath })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Remove image from DOM
+                // Remove the deleted image from DOM
                 const imageWrapper = document.querySelector(`img[data-image-path="${currentImagePath}"]`).parentNode;
                 imageWrapper.remove();
                 showAlert('تصویر با موفقیت حذف شد', 'success', 4000);
@@ -349,18 +392,13 @@ document.addEventListener('DOMContentLoaded', function () {
         contextMenu.style.display = 'none';
     });
 
-    // Helper function to attach event listeners to images
+    // Helper to attach event listeners to newly added images
     function attachImageEventListeners(imageElement) {
         imageElement.addEventListener('click', function () {
-            const modal = document.getElementById('image-modal');
-            const modalImg = document.getElementById('modal-image');
-            
-            modalImg.src = this.src;
+            modalImage.src = this.src;
             modal.style.display = 'block';
             modal.classList.add('show');
-            
-            // Prevent body scroll when modal is open
-            document.body.style.overflow = 'hidden';
+            document.body.style.overflow = 'hidden'; // Prevent body scroll
         });
 
         imageElement.addEventListener('contextmenu', function (event) {
@@ -389,13 +427,13 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Attach event listeners to existing images
+    // Attach event listeners to existing images (if any)
     document.querySelectorAll('.preview-image').forEach(image => {
         attachImageEventListeners(image);
     });
 
-    // Check for success message in URL params when page loads
-    document.addEventListener('DOMContentLoaded', function() {
+    // Initial load success message
+    (function checkImageCountOnLoad() {
         const imageList = document.querySelector('.images');
         if (imageList) {
             const imageCount = imageList.querySelectorAll('.image-wrapper').length;
@@ -403,25 +441,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 showAlert(`${imageCount} تصویر با موفقیت تولید شد!`, 'success', 5000);
             }
         }
-    });
+    })();
 
-    // Add infinite scroll handling
+    // ---------------------------------
+    // Infinite Scrolling for more images
+    // ---------------------------------
     let currentPage = 1;
     let isLoading = false;
     let hasMore = true;
 
     function loadMoreImages() {
         if (isLoading || !hasMore) return;
-        
         isLoading = true;
         showAlert('در حال بارگذاری تصاویر...', 'info');
-        
+
         fetch(`/load_images?page=${currentPage + 1}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     const imagesContainer = document.querySelector('.images');
-                    
                     data.images.forEach(item => {
                         item.images.forEach(imgPath => {
                             const wrapper = document.createElement('div');
@@ -459,10 +497,75 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-    // Add scroll event listener
     window.addEventListener('scroll', () => {
         if ((window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 1000) {
             loadMoreImages();
         }
     });
+
+    // Image upload handling
+    const uploadButton = document.getElementById('upload-button');
+    const fileInput = document.getElementById('image-upload');
+
+    if (uploadButton && fileInput) {
+        uploadButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', async (event) => {
+            const files = event.target.files;
+            if (!files.length) return;
+
+            showAlert('در حال آپلود تصاویر...', 'info');
+            
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                formData.append('images', file);
+            });
+
+            try {
+                const response = await fetch('/upload_images', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const imagesContainer = document.querySelector('.images');
+                    
+                    data.images.forEach(image => {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'image-wrapper';
+                        
+                        const newImg = document.createElement('img');
+                        newImg.src = `/images/${image.path}`;
+                        newImg.className = 'preview-image';
+                        newImg.dataset.imagePath = `/download/${image.path}`;
+                        newImg.dataset.prompt = image.name;
+                        
+                        const tooltip = document.createElement('div');
+                        tooltip.className = 'tooltip';
+                        tooltip.textContent = image.name;
+                        
+                        wrapper.appendChild(newImg);
+                        wrapper.appendChild(tooltip);
+                        imagesContainer.insertBefore(wrapper, imagesContainer.firstChild);
+                        
+                        attachImageEventListeners(newImg);
+                    });
+                    
+                    showAlert(`${data.images.length} تصویر با موفقیت آپلود شد`, 'success', 4000);
+                } else {
+                    showAlert('خطا در آپلود تصاویر', 'error', 4000);
+                }
+            } catch (err) {
+                console.error(err);
+                showAlert('خطا در آپلود تصاویر', 'error', 4000);
+            }
+
+            // Clear the file input
+            fileInput.value = '';
+        });
+    }
 });

@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مولد تصویر هوش مصنوعی</title>
-    <!-- Add Vazirmatn Font -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css">
+    <!-- Vazirmatn Font -->
     <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-Variable-font-face.css" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
@@ -12,76 +13,121 @@
     <div class="container">
 
         <form id="imageForm">
-            <input type="text" id="user_input" name="user_input" placeholder="متن را وارد کنید" required>
             
-            <div class="form-group">
-                <select id="model" name="model">
-                    <optgroup label="g4f Models">
-                        <option value="dall-e-3">dalle3</option>
-                        <option value="midjourney">Midjourney</option>
-                        <option value="flux">Flux</option>
-
-                        <option value="playground-v2.5">playground-v2.5</option>
-                        <option value="flux-pro">flux-pro</option>
-                        <option value="flux-dev">flux-dev</option>
-                        <option value="flux-realism">flux-realism</option>
-                        <option value="flux-anime">flux-anime</option>
-                        <option value="flux-3d">flux-3d</option>
-                        <option value="flux-4o">flux-4o</option>
-                        <option value="sdxl">sdxl</option>
-                        <option value="sdxl-lora">sdxl-lora</option>
-                        <option value="sd-3">sd-3</option>
-                        <option value="sd-3">sd45</option>
-
-                        <option value="any-dark">any-dark</option>
-                    </optgroup>
-                    <optgroup label="Hugging Face Models">
-                        <option value="stabilityai/stable-diffusion-2-1-base">Stable Diffusion 2.1 Base</option>
-                        <option value="black-forest-labs/FLUX.1-dev" selected>FLUX.1-dev</option>
-                        <option value="DeepFloyd/IF-I-XL-v1.0">DeepFloyd IF-I-XL</option>
-                        <option value="lllyasviel/ControlNet">ControlNet</option>
-                        <option value="Animagine/XL">Animagine XL</option>
-                        <option value="stabilityai/sdxl-turbo">sdxl-turbo</option>
-                    </optgroup>
-                </select>
-                
-                <input type="number" id="num_images" name="num_images" min="1" max="10" value="1" placeholder="تعداد تصویر برای هر درخواست" style="width: 50%;">
-                
-                <input type="number" id="width" name="width" list="width-presets" step="64" value="1024" placeholder="Width (pixels)" style="width: 50%;">
-                <datalist id="width-presets">
-                    <option value="1920">
-                    <option value="1280">
-                    <option value="1024">
-                    <option value="768">
-                </datalist>
-                <input type="number" id="height" name="height" list="height-presets" step="64" value="768" placeholder="Height (pixels)" style="width: 50%;">
-                <datalist id="height-presets">
-                    <option value="1920">
-                    <option value="1280">
-                    <option value="1024">
-                    <option value="768">
-                </datalist>
-                <div class="mode-selector">
-                    <select id="generation_mode" name="generation_mode">
-                        <option value="standard" selected>Standard</option>
-                        <option value="note cover">note cover</option>
-                        <option value="variation">Image Variation</option>
-                        <option value="various">Various AI Prompts</option>
+            <!-- 1) Wrap your main text input + submit button in a single container -->
+            <div class="input-with-button">
+                <input 
+                    type="text" 
+                    id="user_input" 
+                    name="user_input" 
+                    placeholder= "چی تو ذهنته ؟" 
+                    required
+                >
+                <!-- The 'Generate' button now inside the same container -->
+                <button type="submit" class="submit-button" id="submit-button">
+                    تصورش کن
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="bi bi-stars" viewBox="0 0 16 16">
+                        <path d="M7.657 6.247c.11-.33.576-.33.686 0l.645 1.937a2.89 2.89 0 0 0 1.829 1.828l1.936.645c.33.11.33.576 0 .686l-1.937.645a2.89 2.89 0 0 0-1.828 1.829l-.645 1.936a.361.361 0 0 1-.686 0l-.645-1.937a2.89 2.89 0 0 0-1.828-1.828l-1.937-.645a.361.361 0 0 1 0-.686l1.937-.645a2.89 2.89 0 0 0 1.828-1.828zM3.794 1.148a.217.217 0 0 1 .412 0l.387 1.162c.173.518.579.924 1.097 1.097l1.162.387a.217.217 0 0 1 0 .412l-1.162.387A1.73 1.73 0 0 0 4.593 5.69l-.387 1.162a.217.217 0 0 1-.412 0L3.407 5.69A1.73 1.73 0 0 0 2.31 4.593l-1.162-.387a.217.217 0 0 1 0-.412l1.162-.387A1.73 1.73 0 0 0 3.407 2.31zM10.863.099a.145.145 0 0 1 .274 0l.258.774c.115.346.386.617.732.732l.774.258a.145.145 0 0 1 0 .274l-.774.258a1.16 1.16 0 0 0-.732.732l-.258.774a.145.145 0 0 1-.274 0l-.258-.774a1.16 1.16 0 0 0-.732-.732L9.1 2.137a.145.145 0 0 1 0-.274l.774-.258c.346-.115.617-.386.732-.732z"/>
+                      </svg>
+                    
+                    <path d="M15.825.12a.5.5 0 0 1 .132.584c-1.53 3.43-4.743 8.17-7.095 10.64a6.1 6.1 0 0 1-2.373 1.534c-.018.227-.06.538-.16.868-.201.659-.667 1.479-1.708 1.74a8.1 8.1 0 0 1-3.078.132 4 4 0 0 1-.562-.135 1.4 1.4 0 0 1-.466-.247.7.7 0 0 1-.204-.288.62.62 0 0 1 .004-.443c.095-.245.316-.38.461-.452.394-.197.625-.453.867-.826.095-.144.184-.297.287-.472l.117-.198c.151-.255.326-.54.546-.848.528-.739 1.201-.925 1.746-.896q.19.012.348.048c.062-.172.142-.38.238-.608.261-.619.658-1.419 1.187-2.069 2.176-2.67 6.18-6.206 9.117-8.104a.5.5 0 0 1 .596.04"/>
+                      </svg>
+                </button>
+            </div>
+            
+            <!-- 2) Keep only your other select/inputs below as normal -->
+            <div class="options-row">
+                <!-- AI Model -->
+                <div class="option-item">
+                    <label for="model">مدل هوش مصنوعی</label>
+                    <select id="model" name="model">
+                        <optgroup label="g4f Models">
+                            <option value="dall-e-3">dalle3</option>
+                            <option value="midjourney">Midjourney</option>
+                            <option value="flux">Flux</option>
+                            <option value="playground-v2.5">playground-v2.5</option>
+                            <option value="flux-pro">flux-pro</option>
+                            <option value="flux-dev">flux-dev</option>
+                            <option value="flux-realism">flux-realism</option>
+                            <option value="flux-anime">flux-anime</option>
+                            <option value="flux-3d">flux-3d</option>
+                            <option value="flux-4o">flux-4o</option>
+                            <option value="sdxl">sdxl</option>
+                            <option value="sdxl-lora">sdxl-lora</option>
+                            <option value="sd-3">sd-3</option>
+                            <option value="sd-3">sd45</option>
+                            <option value="any-dark">any-dark</option>
+                        </optgroup>
+                        <optgroup label="Hugging Face Models">
+                            <option value="stabilityai/stable-diffusion-2-1-base">Stable Diffusion 2.1 Base</option>
+                            <option value="black-forest-labs/FLUX.1-dev" selected>FLUX.1-dev</option>
+                            <option value="DeepFloyd/IF-I-XL-v1.0">DeepFloyd IF-I-XL</option>
+                            <option value="lllyasviel/ControlNet">ControlNet</option>
+                            <option value="Animagine/XL">Animagine XL</option>
+                            <option value="stabilityai/sdxl-turbo">sdxl-turbo</option>
+                        </optgroup>
                     </select>
                 </div>
-                <input type="submit" value="تولید" class="submit-button">
 
-            </div>
+                <!-- Number of Images -->
+                <div class="option-item">
+                    <label for="num_images">تعداد تصاویر</label>
+                    <input type="number" id="num_images" name="num_images" min="1" max="10" value="1" placeholder="مثلاً ۱ تا ۱۰">
+                </div>
+
+                <!-- Width -->
+                <div class="option-item">
+                    <label for="width">عرض (px)</label>
+                    <input type="number" id="width" name="width" list="width-presets" step="64" value="1024" placeholder="عرض">
+                    <datalist id="width-presets">
+                        <option value="1920">
+                        <option value="1280">
+                        <option value="1024">
+                        <option value="768">
+                    </datalist>
+                </div>
+
+                <!-- Height -->
+                <div class="option-item">
+                    <label for="height">ارتفاع (px)</label>
+                    <input type="number" id="height" name="height" list="height-presets" step="64" value="768" placeholder="ارتفاع">
+                    <datalist id="height-presets">
+                        <option value="1920">
+                        <option value="1280">
+                        <option value="1024">
+                        <option value="768">
+                    </datalist>
+                </div>
+                <div class="option-item">
+                    <label for="generation_mode">حالت</label>
+                    <select id="generation_mode" name="generation_mode">
+                        <option value="standard" selected>متن به تصویر</option>
+                        <option value="note cover">note cover</option>
+                        <option value="variation">Image Variation</option>
+                        <option value="various">با کمک هوش مصنوعی</option>
+                    </select>
+                </div>
+                <div class="option-item">
+                    <label for="image-upload">آپلود تصویر</label>
+                    <div class="upload-wrapper">
+                        <input type="file" id="image-upload" accept="image/*" multiple style="display: none;">
+                        <button type="button" id="upload-button" class="upload-button">
+                            <!-- Removed the upload icon for a more minimal design -->
+                            انتخاب تصویر
+                        </button>
+                    </div>
+                </div>
+
+            </div><!-- end .options-row -->
         </form>
 
+        <!-- Alert Box -->
         <div id="alert" class="alert" style="display: none;">
             <div class="alert-content">
                 <span id="alert-text"></span>
-                
             </div>
             <button id="close-alert" class="close-alert" aria-label="بستن اعلان">&times;</button>
         </div>
-        
 
         {% if image_prompt_list %}
             <div class="prompts">
@@ -111,6 +157,7 @@
         {% endif %}
     </div>
 
+    <!-- Modal -->
     <div id="image-modal" class="modal">
         <span class="close-modal">&times;</span>
         <div class="modal-content-wrapper">
@@ -118,46 +165,45 @@
         </div>
     </div>
 
+    <!-- Context Menu -->
+    <!-- Context Menu -->
     <div id="context-menu" class="context-menu">
         <ul>
             <li id="download-image">دانلود</li>
             <li id="copy-prompt">کپی دستور</li>
             <li id="remove-bg">حذف پس‌زمینه</li>
+            <li id="variation-image">image variation</li> <!-- NEW OPTION -->
             <li id="delete-image" class="delete-option">حذف تصویر</li>
         </ul>
     </div>
 
+    <!-- Scripts -->
     <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Load saved preferences
-            const savedModel = localStorage.getItem('model');
-            const savedNumImages = localStorage.getItem('num_images');
-            const savedWidth = localStorage.getItem('width');
-            const savedHeight = localStorage.getItem('height');
-            const savedGenerationMode = localStorage.getItem('generation_mode');
-
-            if (savedModel) document.getElementById('model').value = savedModel;
-            if (savedNumImages) document.getElementById('num_images').value = savedNumImages;
-            if (savedWidth) document.getElementById('width').value = savedWidth;
-            if (savedHeight) document.getElementById('height').value = savedHeight;
-            if (savedGenerationMode) document.getElementById('generation_mode').value = savedGenerationMode;
-
             // Save preferences on form submit
             document.getElementById('imageForm').addEventListener('submit', function() {
                 localStorage.setItem('model', document.getElementById('model').value);
                 localStorage.setItem('num_images', document.getElementById('num_images').value);
                 localStorage.setItem('width', document.getElementById('width').value);
                 localStorage.setItem('height', document.getElementById('height').value);
-                localStorage.setItem('generation_mode', document.getElementById('generation_mode').value);
             });
+
+            // Load saved preferences
+            const savedModel = localStorage.getItem('model');
+            const savedNumImages = localStorage.getItem('num_images');
+            const savedWidth = localStorage.getItem('width');
+            const savedHeight = localStorage.getItem('height');
+
+            if (savedModel) document.getElementById('model').value = savedModel;
+            if (savedNumImages) document.getElementById('num_images').value = savedNumImages;
+            if (savedWidth) document.getElementById('width').value = savedWidth;
+            if (savedHeight) document.getElementById('height').value = savedHeight;
 
             {% if success_message %}
                 showAlert("{{ success_message }}", 'success', 5000);
             {% endif %}
         });
-
-        // Ensure "note cover" is handled if any specific frontend logic is required
     </script>
 </body>
 </html>
