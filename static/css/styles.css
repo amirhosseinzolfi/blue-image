@@ -93,8 +93,8 @@ form {
     border: none;
     cursor: pointer;
     border-radius: 10px;
-    padding: 8px 15px;
-    font-size: 16px;
+    padding: 7px 15px;
+    font-size: 15px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.355);
     transition: background-color 0.2s ease-in-out;
 }
@@ -113,7 +113,8 @@ form {
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: flex-end;
-    gap: 10px;
+    gap: 15px;
+    padding: 10px 0;
     /* No margin-top here since the .input-with-button 
        already has margin-bottom; you can adjust as needed */
 }
@@ -123,6 +124,7 @@ form {
     flex-direction: column;
     flex: 1;
     min-width: 120px;
+    margin: 0 5px;
 }
 
 .option-item label {
@@ -173,35 +175,6 @@ select {
     width: 660px;
     appearance: none;
 }
-
-input[type="number"] {
-    font-family: var(--font-primary);
-    text-align: center;
-    padding: 8px;
-    font-size: 14px;
-    border: none;
-    border-radius: 5px;
-    outline: none;
-    background-color: #2c2c2c;
-    color: #e0e0e0;
-    width: 50%; /* Adjusted width */
-}
-
-input[type="text"]::placeholder {
-    font-family: var(--font-primary);
-    color: #aaaaaa;
-}
-
-input[type="number"] {
-    -moz-appearance: textfield;
-}
-
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-/* Removed redundant select rule */
 
 
 .status {
@@ -305,28 +278,6 @@ a:hover {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #3e3e3e;
-}
-
-/* Add Mode Selector Styles */
-.mode-selector {
-
-    z-index: 100;
-    background-color: #2c2c2c;
-    border-radius: 5px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.mode-selector select {
-    padding: 8px 12px;
-    font-size: 14px;
-    border: none;
-    border-radius: 5px;
-    outline: none;
-    background-color: #2c2c2c;
-    color: #e0e0e0;
-    cursor: pointer;
-    width: auto;
-    min-width: 150px;
 }
 
 
@@ -543,10 +494,11 @@ a:hover {
     display: none;
     position: absolute;
     z-index: 1000;
-    background-color: #333;
+    background-color: #323232;
     color: #fff;
+    font-size: 15px;
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 3px 7px rgba(0, 0, 0, 0.652);
     padding: 10px;
 }
 
@@ -609,7 +561,8 @@ input[type="submit"] {
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: flex-end;
-    gap: 10px;
+    gap: 15px;
+    padding: 10px 0;
     margin-bottom: 20px;
     width: 100%;
     /* background-color: #1e1e1e;  Optional background if you like */
@@ -620,6 +573,7 @@ input[type="submit"] {
     flex-direction: column;
     flex: 1;
     min-width: 120px;
+    margin: 0 5px;
 }
 
 .option-item label {
@@ -674,46 +628,148 @@ input[type="submit"] {
 
 /* ...existing code... */
 
-.upload-wrapper {
+/* Modern Upload Button Styles */
+.upload-container {
     position: relative;
     width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
 }
 
-.upload-button {
-    padding: 8px 16px;
-    background-color: #4b0ca3; /* Match other buttons' color */
-    color: #fff;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+.upload-container .input-container {
+    margin: 0;
+    padding: 0;
 }
 
-.upload-button:hover {
-    background-color: #3700b3;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-}
-
-.upload-progress {
+.upload-container input[type="file"] {
     position: absolute;
-    bottom: -20px;
-    left: 0;
-    width: 100%;
-    height: 3px;
-    background-color: #2c2c2c;
-    border-radius: 3px;
+    width: 0.1px;
+    height: 0.1px;
+    opacity: 0;
     overflow: hidden;
+    z-index: -1;
 }
 
-.upload-progress-bar {
-    height: 100%;
-    background-color: #4b0ca3;
-    width: 0;
-    transition: width 0.3s ease;
+.upload-container .upload-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background-color: #2c2c2c;
+    color: #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid #444;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.upload-container .upload-label:hover {
+    background-color: #38116f;
+    border-color: #bb86fc;
+    box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.1);
+}
+
+.upload-container .upload-label svg {
+    transition: transform 0.2s ease;
+}
+
+.upload-container .upload-label:hover svg {
+    transform: translateY(-2px);
+}
+
+.upload-container .upload-label span {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* Remove the previous upload button styles */
+.upload-wrapper,
+.upload-button {
+    display: none;
 }
 
 /* ...existing code... */
+
+/* Modern Floating Labels */
+.input-container {
+    position: relative;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.input-container input,
+.input-container select {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background-color: #2c2c2cfc;
+    color: #e0e0e0ad;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.input-container label {
+    position: absolute;
+    top: 50%;
+    right: 16px; /* RTL positioning */
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: #888;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    padding: 0 4px;
+    border-radius: 20px;
+    background-color: #252525b9;
+}
+
+/* Label animation when input is focused or has value */
+.input-container input:focus + label,
+.input-container input:not(:placeholder-shown) + label,
+.input-container select:focus + label,
+.input-container select:not(:placeholder-shown) + label {
+    top: 0;
+    font-size: 12px;
+    color: #bb86fc;
+}
+
+/* Input focus styles */
+.input-container input:focus,
+.input-container select:focus {
+    border-color: #bb86fc;
+    box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.1);
+}
+
+/* Ensure inputs maintain consistent height */
+.input-container input[type="number"] {
+    -moz-appearance: textfield;
+    width: 100%;
+    text-align: right;
+}
+
+/* Remove number input arrows */
+.input-container input[type="number"]::-webkit-outer-spin-button,
+.input-container input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Select arrow styling */
+.input-container select {
+    appearance: none;
+    padding-left: 24px; /* Space for custom arrow */
+}
+
+.input-container::after {
+    content: '▼';
+    font-size: 10px;
+    color: #888;
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+}

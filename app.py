@@ -240,7 +240,7 @@ def get_ai_prompts(user_input: str) -> list:
     try:
         response = chat_client.chat.completions.create(
             messages=messages,
-            model="gemini-2.0-flash"
+            model="gemini-1.5-flash"
         )
         ai_response = response.choices[0].message.content
         log_and_print(f"generated AI prompts: {ai_response}")
@@ -308,7 +308,7 @@ def get_note_cover_prompts(user_input: str) -> list:
     try:
         response = chat_client.chat.completions.create(
             messages=messages,
-            model="gemini-2.0-flash"
+            model="gemini-1.5-flash"
         )
         ai_response = response.choices[0].message.content
         log_and_print(f"generated note cover prompts: {ai_response}")
@@ -377,52 +377,62 @@ def index():
         num_images = int(request.form.get('num_images', 1))
         width = int(request.form.get('width', 512))
         height = int(request.form.get('height', 512))
-        generation_mode = request.form.get('generation_mode', 'standard')
+        generation_mode = request.form.get('generation_mode', 'various')
 
         log_and_print(f"Received POST request with user_input: {user_input}, model: {model}, num_images: {num_images}, width: {width}, height: {height}, mode: {generation_mode}")
 
         session['status'] = 'در حال آماده‌سازی'
-        
-        if generation_mode == 'standard':
-            prompts = [user_input]
-        elif generation_mode == 'dify':
-            session['status'] = 'در حال دریافت دستورات از Dify'
-            prompts = get_dify_prompts(user_input)
-        elif generation_mode == 'variation':
-            session['status'] = 'در حال ایجاد تنوع'
-            prompts = [f"{user_input} variation {i+1}" for i in range(num_images)]
-        elif generation_mode == 'various':
-            session['status'] = 'در حال تولید دستورات هوشمند'
-            prompts = get_ai_prompts(user_input)
-            if not prompts:
-                session['error'] = "ناموفق در تولید دستورات هوش مصنوعی"
-                session['user_input'] = user_input
-                return redirect(url_for('index'))
-        elif generation_mode == 'note cover':
+        folder_path, folder_name = create_folder(user_input)
+        image_prompt_list = []
+
+        if generation_mode == 'note cover':
             session['status'] = 'در حال تولید طرح جلد'
-            prompts = get_note_cover_prompts(user_input)
-            if not prompts:
+            cover_prompts = get_note_cover_prompts(user_input)
+            if not cover_prompts:
                 session['error'] = "ناموفق در تولید دستورات طرح جلد"
                 session['user_input'] = user_input
                 return redirect(url_for('index'))
+            
+            session['status'] = 'در حال تولید تصاویر طرح جلد'
+            for prompt in cover_prompts:
+                prompt_images = generate_images_for_prompt(prompt, 0, folder_path, model, 1, width, height)
+                if prompt_images:
+                    relative_image_paths = [os.path.relpath(path, os.path.join(app.root_path, 'images')).replace('\\', '/') for path in prompt_images]
+                    image_prompt_list.append({'prompt': prompt, 'images': relative_image_paths})
 
-        if prompts:
-            session['status'] = 'در حال تولید تصاویر'
-            folder_path, folder_name = create_folder(user_input)
+        elif generation_mode == 'various':
+            session['status'] = 'در حال تولید دستورات هوشمند'
+            ai_prompts = get_ai_prompts(user_input)
+            if not ai_prompts:
+                session['error'] = "ناموفق در تولید دستورات هوش مصنوعی"
+                session['user_input'] = user_input
+                return redirect(url_for('index'))
+            
+            session['status'] = 'در حال تولید تصاویر متنوع'
+            for prompt in ai_prompts:
+                prompt_images = generate_images_for_prompt(prompt, 0, folder_path, model, 1, width, height)
+                if prompt_images:
+                    relative_image_paths = [os.path.relpath(path, os.path.join(app.root_path, 'images')).replace('\\', '/') for path in prompt_images]
+                    image_prompt_list.append({'prompt': prompt, 'images': relative_image_paths})
+
+        else:
+            # Handle standard mode
+            prompts = [user_input]
             image_prompt_list = generate_images(prompts, folder_path, model, num_images, width, height)
-            
-            session['status'] = 'در حال ذخیره‌سازی نتایج'
-            previous_images = load_previous_images()
-            image_prompt_list.extend(previous_images)
-            image_prompt_list.sort(key=lambda x: x.get('created_time', 0), reverse=True)
-            
-            session['status'] = 'اتمام فرآیند'
-            session['image_prompt_list'] = image_prompt_list
-            session['user_input'] = user_input
-            session.pop('status', None)  # Clear status before redirect
-            return render_template('index.html',
-                                   image_prompt_list=[],
-                                   error=None)
+
+        # Common post-processing for all modes
+        session['status'] = 'در حال ذخیره‌سازی نتایج'
+        previous_images = load_previous_images()
+        image_prompt_list.extend(previous_images)
+        image_prompt_list.sort(key=lambda x: x.get('created_time', 0), reverse=True)
+        
+        session['status'] = 'اتمام فرآیند'
+        session['image_prompt_list'] = image_prompt_list
+        session['user_input'] = user_input
+        session.pop('status', None)
+        return render_template('index.html',
+                               image_prompt_list=[],
+                               error=None)
 
     # Handle GET request
     initial_images = load_image_batch(0, IMAGES_PER_PAGE)
@@ -439,12 +449,32 @@ def ajax_generate():
     height = int(request.form.get('height', 512))
     generation_mode = request.form.get('generation_mode', 'standard')
 
-    # ...same generation logic as in index()...
-    prompts = [user_input]  # or fill based on mode, e.g. get_dify_prompts, etc.
     folder_path, folder_name = create_folder(user_input)
-    image_prompt_list = generate_images(prompts, folder_path, model, num_images, width, height)
+    image_prompt_list = []
 
-    # Return JSON with newly generated images only:
+    if generation_mode == 'note cover':
+        cover_prompts = get_note_cover_prompts(user_input)
+        if cover_prompts:
+            for prompt in cover_prompts:
+                prompt_images = generate_images_for_prompt(prompt, 0, folder_path, model, 1, width, height)
+                if prompt_images:
+                    relative_image_paths = [os.path.relpath(path, os.path.join(app.root_path, 'images')).replace('\\', '/') for path in prompt_images]
+                    image_prompt_list.append({'prompt': prompt, 'images': relative_image_paths})
+
+    elif generation_mode == 'various':
+        ai_prompts = get_ai_prompts(user_input)
+        if ai_prompts:
+            for prompt in ai_prompts:
+                prompt_images = generate_images_for_prompt(prompt, 0, folder_path, model, 1, width, height)
+                if prompt_images:
+                    relative_image_paths = [os.path.relpath(path, os.path.join(app.root_path, 'images')).replace('\\', '/') for path in prompt_images]
+                    image_prompt_list.append({'prompt': prompt, 'images': relative_image_paths})
+
+    else:
+        # Handle standard mode
+        prompts = [user_input]
+        image_prompt_list = generate_images(prompts, folder_path, model, num_images, width, height)
+
     return jsonify({
         'success': True,
         'image_prompt_list': image_prompt_list
@@ -551,50 +581,6 @@ def remove_bg():
     except Exception as e:
         log_and_print(f"خطا در حذف پس‌زمینه: {e}")
         return jsonify({'success': False, 'error': str(e)})
-@app.route('/variation_image', methods=['POST'])
-def variation_image():
-    data = request.get_json()
-    image_path = data.get('image_path')
-    num_variations = int(data.get('num_variations', 1))
-
-    # Example: real disk path to the user's selected image
-    # Make sure you properly resolve 'image_path' from your saved images folder
-    real_image_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(image_path))
-
-    generated_images = []
-    try:
-        # *** Insert your 'g4f' or 'OpenAIChat' code here ***
-        # For each variation, call create_variation:
-
-        from g4f.client import Client
-        from g4f.Provider import OpenaiChat
-
-        client = Client(image_provider=OpenaiChat)
-
-        for i in range(num_variations):
-            with open(real_image_path, 'rb') as f:
-                response = client.images.create_variation(
-                    image=f,
-                    model="dall-e-3",
-                    # Other optional params
-                )
-
-            # e.g., response.data[0].url => a publicly hosted image
-            # Download or save it to your server if you need to store the file
-            image_url = response.data[0].url
-            # Suppose you do a local download:
-            # new_filename = save_image_from_url(image_url) # Implement your own logic
-            # generated_images.append({"path": new_filename, "prompt": "Your Variation Prompt"})
-
-            # Or if you keep them only as URLs (not downloaded):
-            generated_images.append({
-                "path": image_url,
-                "prompt": f"Variation of {os.path.basename(image_path)}"
-            })
-
-        return jsonify({"success": True, "generated_images": generated_images})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
 
 @app.route('/delete_image', methods=['POST'])
 def delete_image():

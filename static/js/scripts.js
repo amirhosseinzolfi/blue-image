@@ -75,13 +75,13 @@ document.addEventListener('DOMContentLoaded', function () {
         
         const mode = modeSelector ? modeSelector.value : 'standard';
         const steps = [
-            { delay: 0,    message: 'شروع فرآیند تولید تصویر...', type: 'info' },
+            { delay: 0,    message: 'شروع فرآیند تولید تصویر', type: 'info' },
             { delay: 2000, message: 
-                mode === 'standard'  ? 'در حال تولید تصویر...' :
-                mode === 'note cover' ? 'در حال تولید طرح جلد...' :
-                mode === 'variation' ? 'در حال ایجاد تنوع تصاویر...' :
-                mode === 'various'   ? 'در حال تولید نسخه‌های مختلف...' :
-                                        'در حال پردازش...',
+                mode === 'standard'  ? 'در حال تولید تصویر' :
+                mode === 'note cover' ? 'در حال تولید کاور نوت' :
+                mode === 'variation' ? 'آنالیز نیاز با هوش مصنوعی' :
+                mode === 'various'   ? 'در حال تولید پرامت های مختلف' :
+                                        'در حال پردازش',
               type: 'info'
             }
         ];
@@ -96,6 +96,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // AJAX form submit
         setTimeout(() => {
             const formData = new FormData(form);
+            formData.set('generation_mode', mode); // Ensure mode is sent to server
             fetch('/ajax_generate', {
                 method: 'POST',
                 body: formData
@@ -246,10 +247,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // 3) Remove Background
     removeBgOption.addEventListener('click', function () {
         const bgRemovalSteps = [
-            { delay: 0,    message: 'شروع فرآیند حذف پس‌زمینه...',        type: 'info' },
-            { delay: 2000, message: 'در حال بارگیری تصویر...',           type: 'info' },
-            { delay: 4000, message: 'در حال تحلیل تصویر...',             type: 'info' },
-            { delay: 6000, message: 'در حال پردازش و حذف پس‌زمینه...',   type: 'info' }
+            { delay: 0,    message: 'شروع فرآیند حذف پس‌زمینه',        type: 'info' },
+            { delay: 2000, message: 'در حال بارگیری تصویر',           type: 'info' },
+            { delay: 4000, message: 'در حال تحلیل تصویر',             type: 'info' },
+            { delay: 6000, message: 'در حال پردازش و حذف پس‌زمینه',   type: 'info' }
         ];
 
         contextMenu.style.display = 'none';
@@ -503,25 +504,32 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Image upload handling
+    // References to upload elements
     const uploadButton = document.getElementById('upload-button');
     const fileInput = document.getElementById('image-upload');
 
+    // Ensure both elements exist before attaching event listeners
     if (uploadButton && fileInput) {
+        // Click event for upload button to trigger file input
         uploadButton.addEventListener('click', () => {
             fileInput.click();
         });
 
+        // Change event for file input to handle selected files
         fileInput.addEventListener('change', async (event) => {
             const files = event.target.files;
             if (!files.length) return;
 
             showAlert('در حال آپلود تصاویر...', 'info');
-            
+
             const formData = new FormData();
             Array.from(files).forEach(file => {
                 formData.append('images', file);
             });
+
+            // Include generation_mode if needed
+            const generationMode = document.getElementById('generation_mode').value;
+            formData.append('generation_mode', generationMode);
 
             try {
                 const response = await fetch('/upload_images', {
@@ -530,34 +538,34 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
 
                 const data = await response.json();
-                
+
                 if (data.success) {
                     const imagesContainer = document.querySelector('.images');
-                    
+
                     data.images.forEach(image => {
                         const wrapper = document.createElement('div');
                         wrapper.className = 'image-wrapper';
-                        
+
                         const newImg = document.createElement('img');
                         newImg.src = `/images/${image.path}`;
                         newImg.className = 'preview-image';
                         newImg.dataset.imagePath = `/download/${image.path}`;
                         newImg.dataset.prompt = image.name;
-                        
+
                         const tooltip = document.createElement('div');
                         tooltip.className = 'tooltip';
                         tooltip.textContent = image.name;
-                        
+
                         wrapper.appendChild(newImg);
                         wrapper.appendChild(tooltip);
                         imagesContainer.insertBefore(wrapper, imagesContainer.firstChild);
-                        
+
                         attachImageEventListeners(newImg);
                     });
-                    
+
                     showAlert(`${data.images.length} تصویر با موفقیت آپلود شد`, 'success', 4000);
                 } else {
-                    showAlert('خطا در آپلود تصاویر', 'error', 4000);
+                    showAlert(data.error || 'خطا در آپلود تصاویر', 'error', 4000);
                 }
             } catch (err) {
                 console.error(err);

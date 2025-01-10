@@ -39,82 +39,82 @@
             <div class="options-row">
                 <!-- AI Model -->
                 <div class="option-item">
-                    <label for="model">مدل هوش مصنوعی</label>
-                    <select id="model" name="model">
-                        <optgroup label="g4f Models">
-                            <option value="dall-e-3">dalle3</option>
-                            <option value="midjourney">Midjourney</option>
-                            <option value="flux">Flux</option>
-                            <option value="playground-v2.5">playground-v2.5</option>
-                            <option value="flux-pro">flux-pro</option>
-                            <option value="flux-dev">flux-dev</option>
-                            <option value="flux-realism">flux-realism</option>
-                            <option value="flux-anime">flux-anime</option>
-                            <option value="flux-3d">flux-3d</option>
-                            <option value="flux-4o">flux-4o</option>
-                            <option value="sdxl">sdxl</option>
-                            <option value="sdxl-lora">sdxl-lora</option>
-                            <option value="sd-3">sd-3</option>
-                            <option value="sd-3">sd45</option>
-                            <option value="any-dark">any-dark</option>
-                        </optgroup>
-                        <optgroup label="Hugging Face Models">
-                            <option value="stabilityai/stable-diffusion-2-1-base">Stable Diffusion 2.1 Base</option>
-                            <option value="black-forest-labs/FLUX.1-dev" selected>FLUX.1-dev</option>
-                            <option value="DeepFloyd/IF-I-XL-v1.0">DeepFloyd IF-I-XL</option>
-                            <option value="lllyasviel/ControlNet">ControlNet</option>
-                            <option value="Animagine/XL">Animagine XL</option>
-                            <option value="stabilityai/sdxl-turbo">sdxl-turbo</option>
-                        </optgroup>
-                    </select>
+                    <div class="input-container">
+                        <select id="model" name="model">
+                            <optgroup label="g4f Models">
+                                <option value="dall-e-3">dalle3</option>
+                                <option value="midjourney">Midjourney</option>
+                                <option value="flux">Flux</option>
+                                <option value="playground-v2.5">playground-v2.5</option>
+                                <option value="flux-pro">flux-pro</option>
+                                <option value="flux-dev">flux-dev</option>
+                                <option value="flux-realism">flux-realism</option>
+                                <option value="flux-anime">flux-anime</option>
+                                <option value="flux-3d">flux-3d</option>
+                                <option value="flux-4o">flux-4o</option>
+                                <option value="sdxl">sdxl</option>
+                                <option value="sdxl-lora">sdxl-lora</option>
+                                <option value="sd-3">sd-3</option>
+                                <option value="sd-3">sd45</option>
+                                <option value="any-dark">any-dark</option>
+                            </optgroup>
+                            <optgroup label="Hugging Face Models">
+                                <option value="stabilityai/stable-diffusion-2-1-base">Stable Diffusion 2.1 Base</option>
+                                <option value="black-forest-labs/FLUX.1-dev" selected>FLUX.1-dev</option>
+                                <option value="DeepFloyd/IF-I-XL-v1.0">DeepFloyd IF-I-XL</option>
+                                <option value="lllyasviel/ControlNet">ControlNet</option>
+                                <option value="Animagine/XL">Animagine XL</option>
+                                <option value="stabilityai/sdxl-turbo">sdxl-turbo</option>
+                            </optgroup>
+                        </select>
+                        <label for="model">مدل هوش مصنوعی</label>
+                    </div>
                 </div>
 
                 <!-- Number of Images -->
                 <div class="option-item">
-                    <label for="num_images">تعداد تصاویر</label>
-                    <input type="number" id="num_images" name="num_images" min="1" max="10" value="1" placeholder="مثلاً ۱ تا ۱۰">
+                    <div class="input-container">
+                        <input type="number" id="num_images" name="num_images" min="1" max="10" value="1" placeholder="مثلاً ۱ تا ۱۰">
+                        <label for="num_images">تعداد تصاویر</label>
+                    </div>
                 </div>
 
                 <!-- Width -->
                 <div class="option-item">
-                    <label for="width">عرض (px)</label>
-                    <input type="number" id="width" name="width" list="width-presets" step="64" value="1024" placeholder="عرض">
-                    <datalist id="width-presets">
-                        <option value="1920">
-                        <option value="1280">
-                        <option value="1024">
-                        <option value="768">
-                    </datalist>
+                    <div class="input-container">
+                        <input type="number" id="width" name="width" list="width-presets" step="64" value="1024" placeholder="عرض">
+                        <label for="width">عرض (px)</label>
+                    </div>
                 </div>
 
                 <!-- Height -->
                 <div class="option-item">
-                    <label for="height">ارتفاع (px)</label>
-                    <input type="number" id="height" name="height" list="height-presets" step="64" value="768" placeholder="ارتفاع">
-                    <datalist id="height-presets">
-                        <option value="1920">
-                        <option value="1280">
-                        <option value="1024">
-                        <option value="768">
-                    </datalist>
+                    <div class="input-container">
+                        <input type="number" id="height" name="height" list="height-presets" step="64" value="768" placeholder="ارتفاع">
+                        <label for="height">ارتفاع (px)</label>
+                    </div>
                 </div>
+                <!-- Mode Generation Option -->
                 <div class="option-item">
-                    <label for="generation_mode">حالت</label>
-                    <select id="generation_mode" name="generation_mode">
-                        <option value="standard" selected>متن به تصویر</option>
-                        <option value="note cover">note cover</option>
-                        <option value="variation">Image Variation</option>
-                        <option value="various">با کمک هوش مصنوعی</option>
-                    </select>
+                    <div class="input-container">
+                        <select id="generation_mode" name="generation_mode">
+                            <option value="standard">استاندارد</option>
+                            <option value="various">هوشمند</option>
+                            <option value="note cover">طرح جلد یادداشت</option>
+                        </select>
+                        <label for="generation_mode">نحوه تولید</label>
+                    </div>
                 </div>
-                <div class="option-item">
-                    <label for="image-upload">آپلود تصویر</label>
-                    <div class="upload-wrapper">
-                        <input type="file" id="image-upload" accept="image/*" multiple style="display: none;">
-                        <button type="button" id="upload-button" class="upload-button">
-                            <!-- Removed the upload icon for a more minimal design -->
-                            انتخاب تصویر
-                        </button>
+                <div class="option-item upload-container">
+                    <div class="imaage upload">
+                        <input type="file" id="image-upload" accept="image/*" multiple>
+                        <label for="image-upload" class="upload-label">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                                <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+                            </svg>
+                            <span>اپلود تصویر</span>
+                        </label>
                     </div>
                 </div>
 
