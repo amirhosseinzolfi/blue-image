@@ -1,21 +1,25 @@
-flask>=2.0.0
-flask-socketio>=5.0.0
-requests>=2.25.0
-pillow>=8.0.0
-huggingface-hub>=0.0.19
-g4f>=0.0.1
-openai>=0.27.0
-werkzeug>=2.0.0
-rembg>=2.0.0
-rich>=10.0.0  # For beautiful terminal output
-python-socketio>=5.0.0
-Flask==2.3.2
-rembg
+# Core Flask dependencies
+Flask
+flask-socketio
+python-socketio
+werkzeug
+
+# Image processing
 Pillow
-huggingface_hub
-openai
-requests
+rembg
 onnxruntime
-rembg[cli]
+
+# API clients
+huggingface-hub
 g4f[all]
+openai
+
+# Utilities
+requests
 gunicorn
+
+# Rich terminal output
+rich
+
+# Concurrent processing
+concurrent-futures
