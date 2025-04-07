@@ -8,6 +8,8 @@
     <!-- Vazirmatn Font -->
     <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-Variable-font-face.css" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Add Socket.IO client library -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -75,7 +77,7 @@
                 <div class="option-item">
                     <div class="input-container">
                         <input type="number" id="num_images" name="num_images" min="1" max="10" value="1" placeholder="مثلاً ۱ تا ۱۰">
-                        <label for="num_images">تعداد تصاویر</label>
+                        <label for="num_images">تعداد تصاویر / دستورات</label>
                     </div>
                 </div>
 
@@ -101,6 +103,7 @@
                             <option value="standard">استاندارد</option>
                             <option value="various">هوشمند</option>
                             <option value="note cover">طرح جلد یادداشت</option>
+                            <option value="bulk">تولید انبوه</option>
                         </select>
                         <label for="generation_mode">نحوه تولید</label>
                     </div>
@@ -127,6 +130,50 @@
                 <span id="alert-text"></span>
             </div>
             <button id="close-alert" class="close-alert" aria-label="بستن اعلان">&times;</button>
+        </div>
+
+        <!-- Update queue status indicator for better clarity -->
+        <div id="queue-status" class="queue-status" style="display: none;">
+            <div class="queue-info">
+                <span id="queue-count">0</span> <span>تصویر در صف انتظار</span>
+            </div>
+            <div class="current-task-status">
+                <span id="current-task-message">در حال آماده‌سازی...</span>
+            </div>
+        </div>
+
+        <!-- Add this new floating generation widget after the queue-status div -->
+        <div id="generation-widget" class="generation-widget">
+            <div class="generation-widget-header">
+                <div class="generation-widget-title">در حال تولید تصویر</div>
+                <button class="generation-widget-minimize" id="minimize-generation-widget" title="کوچک کردن">_</button>
+            </div>
+            <div class="generation-widget-content">
+                <div class="generation-widget-loader">
+                    <div class="loader-circle-small"></div>
+                    <div class="loader-brain-small">
+                        <svg viewBox="0 0 200 200" width="40" height="40">
+                            <path class="brain-path" d="M70,80 Q90,60 110,80 T150,80 Q160,70 160,60 Q160,30 130,30 Q110,30 100,50 Q90,30 70,30 Q40,30 40,60 Q40,70 50,80 Q60,90 70,80" />
+                            <path class="brain-path" d="M100,120 Q120,140 140,120 Q150,110 150,100 Q140,90 130,100 Q120,110 100,100 Q80,110 70,100 Q60,90 50,100 Q50,110 60,120 Q80,140 100,120" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="generation-progress-compact">
+                    <div class="progress-bar-compact">
+                        <div class="progress-fill" id="widget-progress-fill"></div>
+                    </div>
+                    <div class="generation-status-compact" id="widget-generation-status">آماده‌سازی...</div>
+                </div>
+                <div id="widget-inspiration" class="inspiration-text-compact"></div>
+            </div>
+        </div>
+
+        <!-- Add a notification badge that appears when generation completes -->
+        <div id="generation-notification" class="generation-notification">
+            <div class="notification-content">
+                <div class="notification-icon">✓</div>
+                <div class="notification-text">تصاویر با موفقیت ساخته شد!</div>
+            </div>
         </div>
 
         {% if image_prompt_list %}

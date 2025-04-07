@@ -14,6 +14,6 @@ timeout /t 5 >nul
 
 REM 5) Open in Chrome “app” mode at 1300x800
 start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
-  --app=http://127.0.0.1:13300 ^
+  --app=http://127.0.0.1:15303 ^
   --window-size=1300,700 ^
   --window-position=300,150
