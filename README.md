@@ -7,205 +7,263 @@
 
 ---
 
+<p align="center">
+  <img src="documents/screenshot_main_grid.png" alt="Main UI Grid" width="600"/>
+</p>
+
+---
+
+## Live Demo
+
+**Try it now:**  
+👉 [http://141.98.210.149:15303/](http://141.98.210.149:15303/)
+
+---
+
 ## Overview
 
-**AI Image Generator with Flask** is a full-featured web application that uses Flask to let you generate, customize, and manage AI-created images. The app leverages multiple AI models (including Hugging Face's Stable Diffusion, DALL-E 3 via a custom proxy, and g4f-supported methods like Midjourney) and integrates additional functionalities like background removal, dynamic prompt creation, and concurrent processing.
+**AI Image Generator with Flask** is a powerful, extensible web application for generating, customizing, and managing AI-created images. It supports multiple state-of-the-art AI models (including DALL-E 3, Midjourney, Stable Diffusion, and more via g4f and Hugging Face), and provides advanced features such as background removal, dynamic prompt engineering, concurrent processing, and real-time task management.
 
-Whether you are an artist, developer, or enthusiast, this app offers a user-friendly interface to experiment with cutting-edge AI image generation.
-
----
-
-## Key Features
-
-- **Multi-Model Support**:  
-  Switch effortlessly between multiple image generation models:
-  - DALL-E 3 (custom API proxy)
-  - Midjourney, Flux, SD variations (via g4f)
-  - Stable Diffusion (Hugging Face based)
-  
-- **Background Removal**:  
-  Instantly remove image backgrounds using the [rembg](https://github.com/danielgatis/rembg) tool.
-
-- **Dynamic & Intelligent Prompt Generation**:  
-  Generate prompts in various modes:
-  - **Standard**: Uses your provided prompt verbatim.
-  - **Dify Mode**: Fetch creative alternative prompts via a remote Dify API.
-  - **AI Prompts**: Utilize g4f to generate multiple creative variations.
-  - **Note Cover**: Produce optimized prompts for creating visually striking note covers.
-
-- **Concurrent Processing**:  
-  Boost performance by processing multiple prompts in parallel using Python’s ThreadPoolExecutor.
-
-- **Persistent Local Storage**:  
-  Automatically store generated images locally and display them in a neatly arranged grid view. Previous images reload on app restart.
-
-- **Interactive User Interface**:  
-  Enjoy features such as:
-  - Right-click context menus for downloading images, copying prompts, and removing backgrounds.
-  - LocalStorage-based preference saving for models, image dimensions, and generation modes.
-
-- **Detailed Task Management and Logging**:  
-  Real-time updates on generation status, task queues, and logging with visually enhanced output via Rich.
+This project is ideal for artists, developers, educators, and anyone interested in exploring or building on top of AI-powered image generation.
 
 ---
 
-## Project Structure
+## Features
+
+- **Multi-Model Support**  
+  - DALL-E 3 (via custom proxy)
+  - Midjourney, Flux, SDXL, and more (via g4f)
+  - Hugging Face models (e.g., Stable Diffusion, ControlNet, DeepFloyd IF, Animagine XL)
+- **Prompt Engineering Modes**  
+  - Standard: Use your prompt as-is
+  - AI Prompts: Generate creative prompt variations using LLMs
+  - Note Cover: Specialized prompts for visually appealing note covers
+  - Bulk: Generate images for multiple prompts at once
+  - Chat: Interactive, context-aware prompt generation using LangChain
+
+<p align="center">
+  <img src="documents/screenshot_settings.png" alt="Settings and Prompt Modes" width="400"/>
+</p>
+
+- **Background Removal**  
+  - Remove backgrounds from generated or uploaded images using [rembg](https://github.com/danielgatis/rembg)
+- **Concurrent Processing**  
+  - Efficiently generate multiple images/prompts in parallel using Python’s `ThreadPoolExecutor`
+- **Task Queue & Real-Time Updates**  
+  - Robust queue system for managing image generation tasks
+  - Real-time status updates and notifications via Socket.IO
+- **Persistent Local Storage**  
+  - All generated images are stored locally and displayed in a responsive grid
+- **User-Friendly Interface**  
+  - Modern, RTL-friendly UI with context menus, modals, and preference saving
+  - Drag-and-drop or multi-file image upload
+- **Extensible Backend**  
+  - Modular codebase with clear separation (Flask app, chat module, g4f proxy, etc.)
+  - Easily add new models, prompt modes, or integrations
+
+---
+
+## Screenshots
+
+### Main Gallery View
+
+<p align="center">
+  <img src="documents/screenshot_main_grid.png" alt="Main Gallery" width="600"/>
+</p>
+
+### Chat Mode (Conversational Prompting)
+
+<p align="center">
+  <img src="documents/screenshot_chat_sketch.png" alt="Chat Mode - Sketch" width="500"/>
+  <br>
+  <img src="documents/screenshot_chat_teacup.png" alt="Chat Mode - Teacup" width="500"/>
+</p>
+
+### Image Preview Modal
+
+<p align="center">
+  <img src="documents/screenshot_modal.png" alt="Image Modal Preview" width="600"/>
+</p>
+
+---
+
+## Architecture
 
 ```
-├── static
-│   ├── css
-│   │   └── styles.css         # Custom app styling (UI/UX enhancements)
-│   ├── js
-│   │   └── scripts.js         # Client-side scripts for modals, context menus, and settings
-│   └── images                 # Directory for all generated images
-├── templates
-│   └── index.html             # Main HTML template rendered by Flask
-├── app.py                     # Main Flask application with API endpoints and task queue processing
-├── requirements.txt           # Essential Python dependencies
-├── LICENSE                    # Project license (MIT)
-└── README.md                  # Project documentation (you are reading this!)
+├── app.py                      # Main Flask application (API endpoints, task queue, image generation)
+├── chat.py                     # LangChain-based chat/conversation module for prompt engineering
+├── templates/
+│   ├── index.html              # Main UI template
+│   └── chat_bot.py             # FastAPI g4f proxy server (OpenAI-compatible API)
+├── static/
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   └── scripts.js
+│   └── images/                 # All generated and uploaded images
+├── requirements.txt            # Python dependencies
+├── LICENSE
+└── README.md                   # This file
 ```
 
 ---
 
 ## Installation
 
-1. **Clone the Repository**  
-   ```bash
-   git clone https://github.com/yourname/AI-Image-Generator.git
-   cd AI-Image-Generator
-   ```
-   
-2. **Prepare a Virtual Environment** (recommended)  
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # For Windows: venv\Scripts\activate
-   ```
-   
-3. **Install Dependencies**  
-   ```bash
-   pip install -r requirements.txt
-   ```
-   
-4. **(Optional) Configure Environment Variables**  
-   Set up a `.env` file with your API keys and custom endpoints (e.g., `DIFY_API_URL`, `DIFY_API_KEY`, `OPENAI_API_KEY`) using [python-dotenv](https://github.com/theskumar/python-dotenv).  
-   ```bash
-   pip install python-dotenv
-   ```
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/yourname/AI-Image-Generator.git
+cd AI-Image-Generator
+```
+
+### 2. Set Up a Virtual Environment (Recommended)
+
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+### 3. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. (Optional) Configure Environment Variables
+
+You can use a `.env` file for API keys and custom endpoints (see [python-dotenv](https://github.com/theskumar/python-dotenv)).
 
 ---
 
-## Configuration & Environment Variables
+## Configuration
 
-Modify configuration settings directly in the source or set them as environment variables. Key configurations include:
-
-- **dify_api_url** and **dify_api_key**:  
-  Used for generating alternative creative prompts via Dify.
-
-- **Custom API Keys** for:
-  - OpenAI (for DALL-E 3 interactions)
-  - Hugging Face (for Stable Diffusion and other models)
-
-For production, it is highly recommended to externalize sensitive configurations using environment variables.
+- **Model Endpoints & API Keys**:  
+  - `OPENAI_API_KEY`, `DIFY_API_KEY`, etc. can be set in `.env` or directly in `app.py`
+- **g4f Proxy**:  
+  - The app uses a FastAPI-based proxy (`templates/chat_bot.py`) to provide an OpenAI-compatible API for g4f models on port 15206.
+- **Image Storage**:  
+  - All images are saved in the `static/images/` directory by default.
 
 ---
 
 ## Usage
 
-1. **Run the Application**  
-   ```bash
-   python app.py
-   ```
-   The server will launch at [http://127.0.0.1:13300](http://127.0.0.1:13300).
+### 1. Start the g4f Proxy Server
 
-2. **Generate Your Images**  
-   - **Input Prompt**: Type your creative prompt (e.g., "A futuristic cityscape at sunset").
-   - **Select a Model**: Choose from the dropdown (e.g., DALL-E 3, Midjourney, Stable Diffusion).
-   - **Set Image Parameters**: Define image count, dimensions (e.g., 512×512), etc.
-   - **Choose Generation Mode**:  
-     - Standard, Dify (for creative alternative prompts), Various AI Prompts, or Note Cover.
-   - **Click Generate**: Watch as the app processes your request and displays the resulting images.
+The Flask app will attempt to start the g4f proxy automatically. If you want to run it manually:
 
-3. **Image Interaction**  
-   - **Preview**: Click on an image for a larger view.
-   - **Context Menu Actions**: Right-click an image to download, copy its prompt, or trigger background removal.
+```bash
+python templates/chat_bot.py
+```
 
-4. **Real-Time Task Updates**  
-   The app employs a task queue system to manage image generation; you will receive real-time status updates via web notifications on progress and task completion.
+### 2. Run the Flask Application
+
+```bash
+python app.py
+```
+
+The server will start at [http://127.0.0.1:15303](http://127.0.0.1:15303)  
+or use the public demo: [http://141.98.210.149:15303/](http://141.98.210.149:15303/)
+
+### 3. Generate Images
+
+- Enter your prompt (in Persian or English)
+- Select the AI model and generation mode
+- Adjust image count and dimensions as needed
+- Click "تصورش کن" (Imagine it!) to generate images
+
+### 4. Interact with Images
+
+- **Preview**: Click to enlarge
+- **Context Menu**: Right-click for download, copy prompt, remove background, or delete
+- **Upload**: Use the upload button to add your own images
 
 ---
 
-## Advanced Usage
+## Advanced Features
 
 - **Bulk Generation**:  
-  Input multiple semicolon-separated prompts to initiate bulk image generation.
+  Enter multiple prompts separated by semicolons for batch processing.
+- **AI Prompt Modes**:  
+  Use "هوشمند" (AI Prompts), "طرح جلد یادداشت" (Note Cover), or "حالت گفتگو" (Chat) for advanced prompt engineering.
+- **LangChain Chat Integration**:  
+  The chat mode leverages LangChain for context-aware, conversational prompt generation.
+- **Task Queue**:  
+  Multiple users/tasks are handled concurrently with real-time progress updates.
 
-- **Custom Prompt Generation**:  
-  Utilize the AI-driven prompt generators (for both standard images and note covers) to explore creative directions without manually refining your prompt.
+---
 
-- **Integration with External Services**:  
-  Leverage integrated APIs to extend functionality—ideal for artists and developers aiming to build on top of AI-generated imagery.
+## Customization & Extensibility
 
-- **Scalability Options**:  
-  Deploy the app using a WSGI server (like Gunicorn) behind a reverse proxy to scale for production use.
+- **Add New Models**:  
+  Extend the model dropdown in `index.html` and update backend logic in `app.py` as needed.
+- **Integrate New Prompt Modes**:  
+  Add new prompt templates and handler functions in `app.py` and `chat.py`.
+- **UI/UX**:  
+  Modify `static/css/styles.css` and `templates/index.html` for custom branding or layout.
 
 ---
 
 ## Troubleshooting
 
-- **Dependency Issues**:  
-  Ensure all packages from `requirements.txt` are installed correctly. Use `pip freeze` to verify installations.
-
-- **API/Endpoint Errors**:  
-  Double-check your API keys, endpoints, and network connectivity. Consult logs (displayed in the console with Rich formatting) for detailed error messages.
-
-- **File Permission Problems**:  
-  Verify that the `images` folder has proper read/write permissions, especially on Linux/macOS systems.
-
-- **Performance Hurdles**:  
-  Consider reducing image resolutions or using smaller batch sizes if experiencing slow generation or timeouts.
+- **Missing Dependencies**:  
+  Ensure all packages in `requirements.txt` are installed.
+- **API/Network Issues**:  
+  Check your API keys, endpoints, and network connectivity.
+- **File Permissions**:  
+  Ensure the `images` directory is writable.
+- **g4f Proxy Not Running**:  
+  Make sure the proxy server is running on port 15206.
+- **LangChain Import Errors**:  
+  Use compatible versions of `langchain` and `langchain-openai` as specified in `requirements.txt`.
 
 ---
 
-## Frequently Asked Questions (FAQ)
+## FAQ
 
-**Q:** Can I deploy the app on a cloud server?  
-**A:** Yes, it can run on any server with Python and Flask support. For production, configure it with Gunicorn and a reverse proxy like Nginx.
+**Q:** Can I use this app in production?  
+**A:** Yes, but for production deployments, use a WSGI server (e.g., Gunicorn) and a reverse proxy (e.g., Nginx). Secure your API keys and endpoints.
 
-**Q:** What image models are supported out-of-the-box?  
-**A:** The app supports multiple models via APIs—DALL-E 3, Midjourney (via g4f), Flux, and various Hugging Face models.
+**Q:** What models are supported?  
+**A:** DALL-E 3, Midjourney, Flux, SDXL, Stable Diffusion, and any g4f/Hugging Face compatible models.
 
-**Q:** How is prompt generation handled?  
-**A:** You can use predefined modes that either use your raw prompt or generate creative alternatives using AI services and external APIs.
+**Q:** Can I generate prompts in Persian?  
+**A:** Yes, the app will translate and optimize Persian prompts automatically.
 
-**Q:** Is concurrent processing implemented?  
-**A:** Yes, the app utilizes Python's concurrent.futures for parallel image generation, ensuring efficient handling of multi-prompt requests.
+**Q:** How does the chat mode work?  
+**A:** Chat mode uses LangChain to maintain conversation context and generate highly optimized prompts interactively.
 
 ---
 
 ## Contributing
 
-Contributions and suggestions are highly welcome! If you would like to improve the project:
-- Fork the repository.
-- Create a new branch for your feature/bug fix.
-- Submit a pull request with a detailed explanation of your changes.
+Contributions are welcome! Please:
 
-For major changes, please open an issue first to discuss what you would like to change.
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request with a clear description
+
+For major changes, open an issue first to discuss your ideas.
 
 ---
 
 ## License
 
-This project is distributed under the MIT License. See the [LICENSE](./LICENSE) file for complete details.
+MIT License. See [LICENSE](./LICENSE) for details.
 
 ---
 
-## Additional Resources
+## Resources
 
 - [Flask Documentation](https://flask.palletsprojects.com/)
-- [Hugging Face API](https://huggingface.co/)
-- [RemBg GitHub](https://github.com/danielgatis/rembg)
-- [g4f Documentation](https://github.com/)
+- [LangChain Documentation](https://python.langchain.com/)
+- [g4f Project](https://github.com/xtekky/gpt4free)
+- [RemBg](https://github.com/danielgatis/rembg)
+- [Hugging Face](https://huggingface.co/)
+- [Socket.IO](https://socket.io/)
 
-Enjoy exploring the future of AI image generation!
+---
+
+Enjoy exploring and building with AI-powered image generation!
 

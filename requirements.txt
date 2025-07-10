@@ -1,25 +1,26 @@
 # Core Flask dependencies
-Flask
-flask-socketio
-python-socketio
-werkzeug
+flask>=2.0.0
+flask-socketio>=5.0.0
+werkzeug>=2.0.0
 
 # Image processing
-Pillow
-rembg
+pillow>=9.0.0
+rembg>=2.0.0
 onnxruntime
 
 # API clients
-huggingface-hub
-g4f[all]
-openai
+huggingface_hub>=0.0.0
+g4f>=0.0.0
+openai>=0.0.0
 
 # Utilities
-requests
+requests>=2.0.0
 gunicorn
 
 # Rich terminal output
-rich
+rich>=10.0.0
 
 # Concurrent processing
-concurrent-futures
+
+# File watching
+watchdog>=2.0.0  # For improved file watching

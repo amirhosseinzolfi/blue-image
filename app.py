@@ -19,12 +19,327 @@ import time
 import uuid
 import queue
 import threading
+import unicodedata
+
 # Import rich for beautiful console output
 from rich.console import Console
 from rich.logging import RichHandler
 
+# Import chat functionality
+from chat import (
+    get_chat_prompt, 
+    get_or_create_chat_session,
+    get_chat_session_stats,
+    get_conversation_summary,
+    clear_chat_session
+)
+
+# Import G4F proxy server
+try:
+    from templates.chat_bot import run_proxy_in_background
+    # Start G4F proxy in background
+    run_proxy_in_background()
+except ImportError as e:
+    print(f"Could not start G4F proxy server: {e}")
+
+# --------------------------
+# G4F API Server Bootstrap
+# --------------------------
+try:
+    from g4f.api import run_api
+except ImportError:
+    run_api = None
+
+# Use either the built-in g4f API or our custom proxy
+if run_api:
+    def _start_g4f():
+        print("Starting G4F built-in API server on http://localhost:15206/v1 …")
+        run_api(bind="0.0.0.0:15206")
+    threading.Thread(target=_start_g4f, daemon=True, name="G4F-API-Thread").start()
+else:
+    print("Using custom G4F proxy server on port 15206")
+
+# --------------------------
+# Configuration
+# --------------------------
+LANGUAGE_MODEL_NAME = "gemini-1.5-pro"
+AI_PROMPT_MODEL_NAME = "gemini-1.5-pro"
+NOTE_COVER_PROMPT_MODEL_NAME = "gpt-4o-mini"
+REQUESTS_TIMEOUT = 30
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+IMAGES_PER_PAGE = 12
+
+# --------------------------
+# LLM Client Initialization
+# --------------------------
+language_llm_client = OpenAI(
+    base_url="http://localhost:15206/v1",
+    api_key="g4f-api-key"
+)
+
+# --------------------------
+# Prompt Templates
+# --------------------------
+ai_prompt_system_message = r"""You are an AI assistant that produces concise, high-quality image-generation prompts.
+
+1. Input Analysis  
+   • Read the user's description in full.  
+   • Extract key elements: subject(s), style, mood, colour palette, composition, and any constraints (e.g., aspect ratio, number of prompts).
+
+2. Prompt Creation  
+   • Write exactly the number of prompts the user requests.  
+   • Each prompt must be one vivid sentence (≤ 40 words) that clearly encodes subject, style, colours, mood, and distinctive details.  
+   • Vary wording and perspective so the set collectively covers the user's full intent.
+
+3. Output Format  
+   • Return **only** a JSON object:  
+     ```json
+     {
+       "prompts": [
+         "Prompt 1",
+         "Prompt 2",
+         "Prompt 3"
+       ]
+     }
+     ```  
+   • No extra text, markdown, or commentary outside the JSON.
+"""
+
+note_cover_prompt_system_message = """You are Pastel3D-Maker, a senior CGI artist who creates ultra-clean 3D “kawaii–minimalist” illustrations.
+
+**Inputs**
+• note_concept (string) – the topic or core idea of the knowledge-base note  
+• num_prompts (int) – the exact number of prompts to create
+
+**Task**
+Create {num_prompts} unique Midjourney prompts that:
+Based on the following detailed personality summary, generate a concise and optimized prompt for an AI image model (e.g., DALL-E 3, Midjourney).
+The desired image should be:
+• Always render ONE main subject supplied by the user.
+• Styling rules (never violate):
+    – 3D, toy-like chibi proportions, smooth matte-plastic material  
+    – Gentle volumetric studio lighting; soft shadows with subtle AO  
+    – Pastel colour palette; large areas of negative space; solid backdrop  
+    – Rounded edges, no sharp detail noise; shallow depth of field  
+    – Mood = playful, calming, optimistic; dopamine colour accents
+- use indigo (near blue) color thone and theme 
+• Negative constraints (MUST exclude):  
+    – No text, logo, watermark, photorealism, harsh shadows, grain, cluttered background
+
+
+analyze user input prompt and understand exact user neede and Replace [topic] with the generated image prompt based on that analyze
+
+**Output format** – return *only* this JSON (no extra text, markdown, or comments):
+
+{{
+  "prompts": [
+    "prompt 1",
+    "prompt 2",
+    …
+  ]
+}}
+"""
+
+translate_prompt_system_message = """Act as an expert prompt engineer for AI image generators. For any user input: 1) analyze it to capture the exact subject, style, mood, and explicit details; 2) translate faithfully into English and enhance with vivid yet relevant descriptors—adjectives, artistic styles, environmental context, composition, lighting, color palette, camera angle—without altering or adding concepts; 3) deliver one concise, well-structured English prompt optimized with clear keywords for Midjourney, DALL-E, or similar models. Output **only** that final prompt, with no extra words."""
+
+# --------------------------
+# Flask App Initialization
+# --------------------------
 app = Flask(__name__)
-app.secret_key = "change_this_secret_key"  # Needed for session usage
+app.secret_key = "change_this_secret_key"
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+# --------------------------
+# Task Queue Setup
+# --------------------------
+task_queue = queue.Queue()
+active_tasks = {}
+task_status = {}
+total_queued_images = 0
+
+# --------------------------
+# External API Clients
+# --------------------------
+client = InferenceClient()
+dify_api_url = "http://localhost/v1/workflows/run"
+dify_api_key = "app-KTzRHpWPjGuTeaX967geUAfx"
+dalle_client = OpenAI(base_url='https://fresedgpt.space/v1', api_key='fresed-20D08BG9uGitZJLn09Rg5VrNjUk3FN')
+g4f_client = Client()
+
+# --------------------------
+# Logging Setup
+# --------------------------
+console = Console()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True, console=console, show_path=False)]
+)
+logger = logging.getLogger("image-generator")
+
+# --------------------------
+# Configuration
+# --------------------------
+WSGIRequestHandler.protocol_version = "HTTP/1.1"
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600
+
+# --------------------------
+# Utility Functions
+# --------------------------
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def log_message(message, level="info", category=None, **kwargs):
+    """Log a message in English in a minimal, informative style."""
+    translation_dict = {
+        "در حال ارائه تصویر": "Presenting image:",
+        "در حال بارگذاری تصویر": "Loading image...",
+        "در حال پردازش و حذف پس‌زمینه": "Processing background removal...",
+        "در حال ذخیره‌سازی تصویر نهایی": "Saving final image...",
+        "تصاویر قبلی بارگذاری شد": "Previous images loaded",
+        "در حال تولید طرح جلد": "Generating note cover",
+        "در حال تولید تصاویر طرح جلد": "Generating note cover images",
+        "در حال ذخیره‌سازی نتایج": "Saving results",
+        "اتمام فرآیند": "Process completed"
+    }
+    for persian, english in translation_dict.items():
+        message = message.replace(persian, english)
+    
+    if category:
+        message = f"[{category.upper()}] {message}"
+    
+    log_func = getattr(logger, level)
+    log_func(message, extra={"markup": True, **kwargs})
+    
+    if kwargs.get("important"):
+        console.rule(style="dim")
+
+def is_persian(text):
+    """Check if text contains Persian characters"""
+    for char in text:
+        if '\u0600' <= char <= '\u06FF':
+            return True
+    return False
+
+def sanitize_filename(text, max_length=70):
+    """Sanitize text to be used as a filename"""
+    text = re.sub(r'[\\/*?:"<>|]', '', text)
+    text = re.sub(r'[\s,;.]+', '_', text)
+    text = re.sub(r'[^\w-]', '', text)
+    if len(text) > max_length:
+        text = text[:max_length]
+    text = text.rstrip('_-')
+    if not text:
+        text = "image"
+    return text
+
+def sanitize_folder_name(query):
+    """Sanitize string for use as a folder name"""
+    return sanitize_filename(query, max_length=100)
+
+# --------------------------
+# LLM Functions
+# --------------------------
+def translate_and_optimize_prompt(user_input: str) -> str:
+    """Translates user input to English and optimizes it for image generation."""
+    log_message(f"Translating and optimizing user input: {user_input}", category="llm")
+    
+    messages = [
+        {"role": "system", "content": translate_prompt_system_message},
+        {"role": "user", "content": f" prompt: {user_input}"}
+    ]
+    
+    try:
+        response = language_llm_client.chat.completions.create(
+            messages=messages,
+            model=LANGUAGE_MODEL_NAME
+        )
+        optimized_prompt = response.choices[0].message.content
+        log_message(f"Translated and optimized prompt: {optimized_prompt}", category="llm")
+        return optimized_prompt
+    except Exception as e:
+        log_message(f"Error translating and optimizing prompt: {e}", category="llm")
+        return user_input
+
+def get_ai_prompts(user_input: str, num_prompts: int = 5) -> list:
+    """Get image prompts from AI using G4F"""
+    log_message(f"Getting {num_prompts} AI prompts for input: {user_input}", category="ai")
+    chat_client = Client()
+    
+    messages = [
+        {"role": "system", "content": ai_prompt_system_message},
+        {"role": "user", "content": f"Generate {num_prompts} creative image prompts based on: {user_input}"}
+    ]
+    
+    try:
+        response = chat_client.chat.completions.create(
+            messages=messages,
+            model=AI_PROMPT_MODEL_NAME
+        )
+        ai_response = response.choices[0].message.content
+        log_message(f"generated AI prompts: {ai_response}", category="ai")
+        
+        if (ai_response.strip().startswith("```json") and ai_response.strip().endswith("```")):
+            ai_response = ai_response.strip()[7:-3].strip()
+        
+        try:
+            result = json.loads(ai_response)
+            if isinstance(result, dict) and "prompts" in result:
+                return result["prompts"][:num_prompts]
+        except json.JSONDecodeError:
+            log_message(f"Failed to parse AI response as JSON: {ai_response}", category="ai")
+            
+        prompts = [line.strip() for line in ai_response.split('\n') if line.strip()]
+        return prompts[:num_prompts]
+        
+    except Exception as e:
+        log_message(f"Error getting AI prompts: {e}", category="ai")
+        return []
+
+def get_note_cover_prompts(user_input: str, num_prompts: int = 5) -> list:
+    """Get note cover image prompts from AI with specific instructions."""
+    log_message(f"Getting {num_prompts} note cover prompts for input: {user_input}", category="note cover")
+    chat_client = Client()
+    
+    system_message = note_cover_prompt_system_message.format(num_prompts=num_prompts)
+    
+    messages = [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": f"Generate {num_prompts} creative note cover prompts based on: {user_input}"}
+    ]
+    
+    try:
+        response = chat_client.chat.completions.create(
+            messages=messages,
+            model=NOTE_COVER_PROMPT_MODEL_NAME
+        )
+        ai_response = response.choices[0].message.content
+        log_message(f"generated note cover prompts: {ai_response}", category="note cover")
+        
+        if ai_response.strip().startswith("```json") and ai_response.strip().endswith("```"):
+            ai_response = ai_response.strip()[7:-3].strip()
+        
+        try:
+            result = json.loads(ai_response)
+            if isinstance(result, dict) and "prompts" in result:
+                return result["prompts"][:num_prompts]
+        except json.JSONDecodeError:
+            log_message(f"Failed to parse AI response as JSON: {ai_response}", category="note cover")
+            
+        prompts = [line.strip() for line in ai_response.split('\n') if line.strip()]
+        return prompts[:num_prompts]
+        
+    except Exception as e:
+        log_message(f"Error getting note cover prompts: {e}", category="note cover")
+        return []
+
+# --------------------------
+# Flask App Setup
+# --------------------------
+app = Flask(__name__)
+app.secret_key = "change_this_secret_key"
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Create a task queue for image generation
@@ -39,6 +354,7 @@ client = InferenceClient()
 dify_api_url = "http://localhost/v1/workflows/run"
 dify_api_key = "app-KTzRHpWPjGuTeaX967geUAfx"
 dalle_client = OpenAI(base_url='https://fresedgpt.space/v1', api_key='fresed-20D08BG9uGitZJLn09Rg5VrNjUk3FN')
+# g4f_client remains a direct g4f.client.Client for image generation
 g4f_client = Client()
 
 # Set up rich console
@@ -70,33 +386,43 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def log_message(message, level="info", category=None, **kwargs):
-    """Log a message with rich formatting and optional metadata"""
+    """Log a message in English in a minimal, informative style."""
+    # Replace predefined Persian phrases with their English equivalents.
+    translation_dict = {
+        "در حال ارائه تصویر": "Presenting image:",
+        "در حال بارگذاری تصویر": "Loading image...",
+        "در حال پردازش و حذف پس‌زمینه": "Processing background removal...",
+        "در حال ذخیره‌سازی تصویر نهایی": "Saving final image...",
+        "تصاویر قبلی بارگذاری شد": "Previous images loaded",
+        "در حال تولید طرح جلد": "Generating note cover",
+        "در حال تولید تصاویر طرح جلد": "Generating note cover images",
+        "در حال ذخیره‌سازی نتایج": "Saving results",
+        "اتمام فرآیند": "Process completed"
+    }
+    for persian, english in translation_dict.items():
+        message = message.replace(persian, english)
+    
+    # Ensure the log message is tagged with its category in uppercase.
     if category:
-        message = f"[bold cyan]{category.upper()}:[/bold cyan] {message}"
+        message = f"[{category.upper()}] {message}"
     
     log_func = getattr(logger, level)
     log_func(message, extra={"markup": True, **kwargs})
     
-    # Add visual separator for major events
+    # Add a visual separator for important events.
     if kwargs.get("important"):
         console.rule(style="dim")
 
 def log_generation_start(prompt, model, task_id=None):
-    """Log the start of image generation with details"""
-    task_info = f"[magenta](Task: {task_id[:8]}...)[/magenta]" if task_id else ""
-    log_message(
-        f"Generating image with [yellow]{model}[/yellow] {task_info}",
-        category="generation", 
-    )
-    log_message(f"Prompt: [italic]\"{prompt}\"[/italic]", level="debug", category="prompt")
+    """Log the start of image generation."""
+    task_info = f"(Task: {task_id[:8]}...)" if task_id else ""
+    log_message(f"Generating image with {model} {task_info}", category="generation")
+    log_message(f"Prompt: \"{prompt}\"", level="debug", category="prompt")
 
 def log_generation_complete(filename, elapsed=None):
-    """Log successful image generation"""
-    time_info = f" [green]({elapsed:.2f}s)[/green]" if elapsed else ""
-    log_message(
-        f"Image saved: [blue]{os.path.basename(filename)}[/blue]{time_info}", 
-        category="generation"
-    )
+    """Log successful image generation."""
+    time_info = f" ({elapsed:.2f}s)" if elapsed else ""
+    log_message(f"Image saved: {os.path.basename(filename)}{time_info}", category="generation")
 
 def generate_image_dalle(prompt, index, folder_path, image_number, task_id=None):
     start_time = time.time()
@@ -160,28 +486,12 @@ def generate_image_g4f(prompt, index, folder_path, model, image_number, width, h
     
     return saved_path
 
-def sanitize_filename(text, max_length=70):
-    """
-    Sanitize text to be used as a filename by:
-    1. Removing invalid characters
-    2. Replacing separators with underscores
-    3. Truncating to max_length
-    """
-    # Remove invalid filename characters
-    text = re.sub(r'[\\/*?:"<>|]', '', text)
-    # Replace sequences of spaces, commas and other separators with a single underscore
-    text = re.sub(r'[\s,;.]+', '_', text)
-    # Remove any other non-alphanumeric characters except underscores and hyphens
-    text = re.sub(r'[^\w-]', '', text)
-    # Truncate to max_length characters
-    if len(text) > max_length:
-        text = text[:max_length]
-    # Ensure the filename doesn't end with an underscore or hyphen
-    text = text.rstrip('_-')
-    # If somehow the filename is empty, use a default
-    if not text:
-        text = "image"
-    return text
+def create_folder(query):
+    folder_path = os.path.join('images')
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    log_message(f"Using folder: {folder_path}", category="folder")
+    return folder_path, 'images'
 
 def save_image_from_url(image_url, prompt, index, folder_path, model, image_number):
     """Download an image from URL and save it with a sanitized filename"""
@@ -189,12 +499,10 @@ def save_image_from_url(image_url, prompt, index, folder_path, model, image_numb
     
     image_response = requests.get(image_url, timeout=REQUESTS_TIMEOUT)
     
-    # Sanitize the prompt for use in filename and truncate it to avoid path length issues
     sanitized_prompt = sanitize_filename(prompt)
     base_filename = f"{sanitized_prompt}_{index+1}_{model}_{image_number}.jpeg"
     image_filename = os.path.join(folder_path, base_filename)
     
-    # Check if the file already exists and add a prefix if it does
     if os.path.exists(image_filename):
         prefix = 1
         while os.path.exists(os.path.join(folder_path, f"{prefix}_{base_filename}")):
@@ -214,55 +522,54 @@ def generate_images_for_prompt(prompt, index, folder_path, model, num_images, wi
         "playground-v2.5", "flux-pro", "flux-dev", "flux-realism", 
         "flux-anime", "flux-3d", "flux-4o", "any-dark"
     ]
-    if model in g4f_models:
-        generate_func = generate_image_g4f
-        for i in range(num_images):
-            # Update task status before generation
-            if task_id:
-                update_task_status(task_id, f"Generating image {i+1}/{num_images} for: {prompt}")
-            image_filename = generate_func(prompt, index, folder_path, model, i+1, width, height, task_id)
-            images_filenames.append(image_filename)
-    else:
-        for i in range(num_images):
-            unique_prompt = f"{prompt} variation {i+1}"
-            seed = random.randint(1, 1000000)
-            # Update task status before generation
-            if task_id:
-                update_task_status(task_id, f"Generating image {i+1}/{num_images} for: {unique_prompt}")
-            log_message(f"Generating image with {model} for prompt: {unique_prompt} with seed: {seed}", category="generation")
-            image = client.text_to_image(prompt=unique_prompt, model=model, height=height, width=width, seed=seed)
-            image_filename = os.path.join(folder_path, f"{sanitize_folder_name(prompt)}_{index+1}_{model}_{i+1}.jpeg")
-            image.save(image_filename, format='JPEG')
-            log_message(f"Image saved as: {image_filename}", category="generation")
-            images_filenames.append(image_filename)
-            # Emit result immediately after generation
-            if task_id:
-                relative_path = os.path.relpath(image_filename, os.path.join(app.root_path, 'images')).replace('\\', '/')
-                socketio.emit('image_generated', {
-                    'task_id': task_id,
-                    'prompt': unique_prompt,
-                    'image_path': relative_path,
-                    'download_path': relative_path,
-                    'model': model  # Include model info
-                })
-    return images_filenames
-                
-def sanitize_folder_name(query):
-    """Sanitize string for use as a folder name"""
-    return sanitize_filename(query, max_length=100)
-
-def create_folder(query):
-    folder_path = os.path.join('images')
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-    log_message(f"Using folder: {folder_path}", category="folder")
-    return folder_path, 'images'
+    try:  # Add try/except for better error handling
+        if model in g4f_models:
+            generate_func = generate_image_g4f
+            for i in range(num_images):
+                # Update task status before generation
+                if task_id:
+                    update_task_status(task_id, f"Generating image {i+1}/{num_images} for: {prompt}")
+                log_message(f"Starting generation {i+1}/{num_images} with {model}", category="generation")
+                image_filename = generate_func(prompt, index, folder_path, model, i+1, width, height, task_id)
+                images_filenames.append(image_filename)
+                log_message(f"Finished image {i+1}/{num_images} for prompt", category="generation")
+        else:
+            for i in range(num_images):
+                unique_prompt = f"{prompt} variation {i+1}"
+                seed = random.randint(1, 1000000)
+                # Update task status before generation
+                if task_id:
+                    update_task_status(task_id, f"Generating image {i+1}/{num_images} for: {unique_prompt}")
+                log_message(f"Generating image with {model} for prompt: {unique_prompt} with seed: {seed}", category="generation")
+                image = client.text_to_image(prompt=unique_prompt, model=model, height=height, width=width, seed=seed)
+                image_filename = os.path.join(folder_path, f"{sanitize_folder_name(prompt)}_{index+1}_{model}_{i+1}.jpeg")
+                image.save(image_filename, format='JPEG')
+                log_message(f"Image saved as: {image_filename}", category="generation")
+                images_filenames.append(image_filename)
+                # Emit result immediately after generation
+                if task_id:
+                    relative_path = os.path.relpath(image_filename, os.path.join(app.root_path, 'images')).replace('\\', '/')
+                    socketio.emit('image_generated', {
+                        'task_id': task_id,
+                        'prompt': unique_prompt,
+                        'image_path': relative_path,
+                        'download_path': relative_path,
+                        'model': model  # Include model info
+                    })
+        return images_filenames
+    except Exception as e:
+        log_message(f"Error generating images: {str(e)}", category="error")
+        if task_id:
+            socketio.emit('task_error', {
+                'task_id': task_id,
+                'error': f"Error generating image: {str(e)}"
+            })
+        return images_filenames  # Return any successfully generated images
 
 def get_dify_prompts(user_input):
     log_message(f"Fetching Dify prompts for input: {user_input}", category="dify")
     headers = {
-        "Authorization": f"Bearer {dify_api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json"  # Removed Authorization header
     }
     data = {
         "inputs": {
@@ -317,147 +624,6 @@ def shorten_prompt(prompt):
     shortened_prompt = ' '.join(prompt_clean.split()[:5])
     return shortened_prompt[:30] + "..." if len(shortened_prompt) > 30 else shortened_prompt
 
-import g4f
-from g4f.client import Client
-import json
-
-def get_ai_prompts(user_input: str, num_prompts: int = 5) -> list:
-    """Get image prompts from AI using G4F"""
-    log_message(f"Getting {num_prompts} AI prompts for input: {user_input}", category="ai")
-    chat_client = Client()
-    
-    system_message = r"""- you are an AI chat bot that generates creative and optimized and efficient image prompts based on analying carefully user input.
-            - Your task is to generate creative image prompts based on the user's description.
-    
-            1. **Analyze the User's Description**  
-            - Read and understand any user's text input describing the desired image and strategy.
-            - Check what the user wants in their image (like colors, themes, mood, style, objects).
-    
-            2. **Generate Detailed Prompts**  
-            - Generate the requested number of image prompts based on the user's needs and input.
-            - Consider generating variety of prompts that are unique and covers all user needs.
-            - Generate different aspects of the user input and generate prompts based on that.
-            - Keep them short, clear, and focused on the key elements (style, colors, subject).
-            - Each prompt must be a single concise sentence or phrase.
-    
-            3. **Output Only the JSON**  
-            - Return the prompts in a JSON object with the structure:
-                {
-                "prompts": [
-                    "prompt1",
-                    "prompt2",
-                    "prompt3",
-                    ...etc. (matching the number requested)
-                ]
-                }
-            - Don't include any extra text or formatting—just the JSON.
-    
-            4. **Maintain Consistency**  
-            - Always ensure the prompts align with the user's request and need.
-            - Make sure the prompts are creative and aren't similar to each other but match the user's details.
-            - Avoid repeating the same words or phrases in multiple prompts.
-            That's it. Stick to these steps and keep it simple!"""
-    
-    messages = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": f"Generate {num_prompts} creative image prompts based on: {user_input}"}
-    ]
-    
-    try:
-        response = chat_client.chat.completions.create(
-            messages=messages,
-            model="gpt-4o"
-        )
-        ai_response = response.choices[0].message.content
-        log_message(f"generated AI prompts: {ai_response}", category="ai")
-        
-        # Remove ```json and ``` if present
-        if (ai_response.strip().startswith("```json") and ai_response.strip().endswith("```")):
-            ai_response = ai_response.strip()[7:-3].strip()
-        
-        # Try to parse JSON response
-        try:
-            result = json.loads(ai_response)
-            if isinstance(result, dict) and "prompts" in result:
-                return result["prompts"][:num_prompts]  # Limit to requested number
-        except json.JSONDecodeError:
-            log_message(f"Failed to parse AI response as JSON: {ai_response}", category="ai")
-            
-        # Fallback: try to extract prompts from text response
-        prompts = [line.strip() for line in ai_response.split('\n') if line.strip()]
-        return prompts[:num_prompts]  # Limit to requested number
-        
-    except Exception as e:
-        log_message(f"Error getting AI prompts: {e}", category="ai")
-        return []
-
-def get_note_cover_prompts(user_input: str, num_prompts: int = 5) -> list:
-    """Get note cover image prompts from AI with specific instructions."""
-    log_message(f"Getting {num_prompts} note cover prompts for input: {user_input}", category="note cover")
-    chat_client = Client()
-    
-    system_message = f"""
-        You are notes image cover generator, an AI assistant expert in crafting creative and efficient and optimized  prompts for ai image generators and Midjourney. When a user provides a topic and concept for a note cover image, your task is to generate {num_prompts} unique and optimized prompts. Ensure each prompt effectively incorporates main concepts and keywords of note topic.
-        Uniqueness: Each of the {num_prompts} prompts must be unique and not similar to each other. Use different combinations, and interpretations of the user's input. Vary the artistic styles, settings, moods, and perspectives across the prompts to inspire diverse visual outcomes.
-        Generate a **high-quality prompt** for creating a **minimal, modern, and 3D-style illustration cover image for a knowledge base note, as specified by the user. The cover image should be tailored to the note's concept which user gives. 
-        1. **Note Concept**  
-        Use the provided note concept as the basis for the visual concept in the prompt.
-
-        2. **Design Requirements**  
-        - **Style**: Minimal, modern, with 3D illustration effects.
-        - **Theme**: The image should visually represent the core idea or focus of the note.
-        - **Color Scheme**: based on the note concept and topic use a suitable and related mood and color theme and Use a clean, professional color palette that complements the modern aesthetic.
-        - **Layout**: Maintain a balanced composition with a focus on simplicity and professionalism and conceptuality.
-        Clarity and Conciseness: Keep each prompt clear, concise, and to the point. Aim for a length of one to two sentences per prompt.
-
-        Midjourney Optimization: Structure the prompts in a way that Midjourney can easily interpret and utilize effectively. Avoid ambiguity and overly complex sentence structures.
-
-        Formatting and Output: Return the generated prompts as a JSON object with the key "prompts" and an array of strings. Do not include any introductory or explanatory text. The output should strictly adhere to the following JSON format:
-
-        {{
-        "prompts": [
-            "prompt1",
-            "prompt2",
-            "prompt3",
-            ... (exactly {num_prompts} prompts)
-        ]
-        }}
-
-        Avoid any repetitive phrases or design concepts across the prompts to ensure diversity. Your sole output should be the JSON object containing exactly {num_prompts} prompts."""
-
-    messages = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": f"Generate {num_prompts} creative note cover prompts based on: {user_input}"}
-    ]
-    
-    try:
-        response = chat_client.chat.completions.create(
-            messages=messages,
-            model="gpt-4o"
-        )
-        ai_response = response.choices[0].message.content
-        log_message(f"generated note cover prompts: {ai_response}", category="note cover")
-        
-        # Remove ```json and ``` if present
-        if ai_response.strip().startswith("```json") and ai_response.strip().endswith("```"):
-            ai_response = ai_response.strip()[7:-3].strip()
-        
-        # Try to parse JSON response
-        try:
-            result = json.loads(ai_response)
-            if isinstance(result, dict) and "prompts" in result:
-                return result["prompts"][:num_prompts]  # Limit to requested number
-        except json.JSONDecodeError:
-            log_message(f"Failed to parse AI response as JSON: {ai_response}", category="note cover")
-            
-        # Fallback: try to extract prompts from text response
-        prompts = [line.strip() for line in ai_response.split('\n') if line.strip()]
-        return prompts[:num_prompts]  # Limit to requested number
-        
-    except Exception as e:
-        log_message(f"Error getting note cover prompts: {e}", category="note cover")
-        return []
-
 IMAGES_PER_PAGE = 12  # Number of images to load per batch
 
 @app.route('/load_images', methods=['GET'])
@@ -504,7 +670,8 @@ def load_image_batch(offset, limit):
 def index():
     if request.method == 'POST':
         user_input = request.form['user_input']
-        model = request.form.get('model', 'stabilityai/stable-diffusion-2-1-base')
+        # Set midjourney as default model
+        model = request.form.get('model', 'midjourney')
         num_images = int(request.form.get('num_images', 1))
         width = int(request.form.get('width', 512))
         height = int(request.form.get('height', 512))
@@ -546,9 +713,32 @@ def index():
                     relative_image_paths = [os.path.relpath(path, os.path.join(app.root_path, 'images')).replace('\\', '/') for path in prompt_images]
                     image_prompt_list.append({'prompt': prompt, 'images': relative_image_paths})
 
+        elif generation_mode == 'chat':
+            session['status'] = 'در حال تولید پرامپت گفتگو'
+            session_id = get_or_create_chat_session(session.get('session_id'))
+            session['session_id'] = session_id
+            
+            optimized_prompt = get_chat_prompt(user_input, session_id)
+            
+            session['status'] = 'در حال تولید تصویر با پرامپت گفتگو'
+            prompt_images = generate_images_for_prompt(optimized_prompt, 0, folder_path, model, num_images, width, height)
+            
+            if prompt_images:
+                relative_image_paths = [os.path.relpath(path, os.path.join(app.root_path, 'images')).replace('\\', '/') for path in prompt_images]
+                image_prompt_list.append({
+                    'prompt': optimized_prompt, 
+                    'original_prompt': user_input,
+                    'images': relative_image_paths
+                })
+
         else:
             # Handle standard mode
-            prompts = [user_input]
+            # Translate and optimize the user input if it's Persian
+            if is_persian(user_input):
+                translated_prompt = translate_and_optimize_prompt(user_input)
+            else:
+                translated_prompt = user_input
+            prompts = [translated_prompt]
             image_prompt_list = generate_images(prompts, folder_path, model, num_images, width, height)
 
         # Common post-processing for all modes
@@ -579,7 +769,8 @@ def ajax_generate():
     # Get parameters from form
     params = {
         'user_input': request.form['user_input'],
-        'model': request.form.get('model', 'stabilityai/stable-diffusion-2-1-base'),
+        # Set midjourney as default model
+        'model': request.form.get('model', 'midjourney'),
         'num_images': int(request.form.get('num_images', 1)),
         'width': int(request.form.get('width', 512)),
         'height': int(request.form.get('height', 512)),
@@ -613,7 +804,7 @@ def ajax_generate():
     generation_mode = params['generation_mode']
     num_images = params['num_images']
     total_images_in_task = 0
-    
+
     # For bulk mode, count number of queries and multiply
     if generation_mode == 'bulk':
         queries = [q.strip() for q in params['user_input'].split(';') if q.strip()]
@@ -624,6 +815,11 @@ def ajax_generate():
     # For all other modes
     elif generation_mode == 'note cover' or generation_mode == 'various':
         total_images_in_task = num_images  # Each prompt will generate one image
+    elif generation_mode == 'chat':
+        session_id = session.get('session_id', str(uuid.uuid4()))
+        session['session_id'] = session_id
+        task['session_id'] = session_id  # Add session_id to the task
+
     else:
         # Standard mode uses the num_images parameter directly
         total_images_in_task = num_images
@@ -716,7 +912,7 @@ def load_previous_images():
                 created_time = os.path.getctime(os.path.join(root, file))
                 image_prompt_list.append({'prompt': prompt, 'images': [relative_path], 'created_time': created_time})
     image_prompt_list.sort(key=lambda x: x['created_time'], reverse=True)
-    log_message("تصاویر قبلی بارگذاری شد", category="load")
+    log_message("Previous images loaded", category="load")
     return image_prompt_list
 
 @app.route('/remove_bg', methods=['POST'])
@@ -726,17 +922,17 @@ def remove_bg():
         return jsonify({'success': False, 'error': 'مسیر تصویر ارائه نشده'})
 
     try:
-        log_message("شروع فرآیند حذف پس‌زمینه", category="background")
+        log_message("Processing background removal...", category="background")
         time.sleep(2)  # Initial delay
         
         image_path = image_path.replace('/download/', '')
         input_path = os.path.join('images', image_path)
         
-        log_message("در حال بارگذاری تصویر", category="background")
+        log_message("Loading image...", category="background")
         time.sleep(1)  # Loading delay
         input_image = Image.open(input_path)
         
-        log_message("در حال پردازش و حذف پس‌زمینه", category="background")
+        log_message("Processing background removal...", category="background")
         time.sleep(2)  # Processing delay
         output_image = remove(input_image)
         
@@ -744,7 +940,7 @@ def remove_bg():
         output_filename = f"{filename_without_ext}_no_bg.png"
         output_path = os.path.join('images', output_filename)
         
-        log_message("در حال ذخیره‌سازی تصویر نهایی", category="background")
+        log_message("Saving final image...", category="background")
         time.sleep(1)  # Saving delay
         output_image.save(output_path)
 
@@ -754,7 +950,7 @@ def remove_bg():
             'new_image_path': output_filename
         })
     except Exception as e:
-        log_message(f"خطا در حذف پس‌زمینه: {e}", category="error")
+        log_message(f"Error in background removal: {e}", category="error")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/delete_image', methods=['POST'])
@@ -781,12 +977,12 @@ def delete_image():
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
-    log_message(f"در حال ارائه تصویر: {filename}", category="serve")
+    log_message(f"Presenting image: {filename}", category="serve")
     return send_from_directory('images', filename)
 
 @app.route('/download/<path:filename>')
 def download_image(filename):
-    log_message(f"در حال دانلود تصویر: {filename}", category="download")
+    log_message(f"Downloading image: {filename}", category="download")
     return send_file(os.path.join('images', filename), as_attachment=True)
 
 # Add new functions for task queue management
@@ -857,8 +1053,7 @@ def process_task_queue():
                         # Use standard generation for each query
                         prompt_images = generate_images_for_prompt(query, 0, query_folder_path, model, num_images, width, height, task_id)
                         task_image_count += len(prompt_images)
-                
-                # Handle other generation modes
+                        
                 elif generation_mode == 'note cover':
                     log_message(f"Generating {num_images} note cover prompts", category="processing")
                     update_task_status(task_id, f'Generating {num_images} note cover prompts')
@@ -874,8 +1069,21 @@ def process_task_queue():
                     task_image_count = len(cover_prompts)
                     for i, prompt in enumerate(cover_prompts):
                         update_task_status(task_id, f'Generating image {i+1}/{len(cover_prompts)} for note cover')
-                        generate_images_for_prompt(prompt, 0, folder_path, model, 1, width, height, task_id)
+                        generate_images_for_prompt(prompt, i, folder_path, model, 1, width, height, task_id)
                 
+                elif generation_mode == 'chat':
+                    session_id = task.get('session_id', str(uuid.uuid4()))
+                    log_message(f"Generating chat prompt", category="processing")
+                    update_task_status(task_id, f'Generating optimized prompt from chat')
+                    
+                    optimized_prompt = get_chat_prompt(user_input, session_id)
+                    
+                    task_image_count = num_images
+                    log_message(f"Generating {num_images} images for chat prompt", category="processing")
+                    update_task_status(task_id, f'Generating {num_images} images for chat prompt')
+                    
+                    generate_images_for_prompt(optimized_prompt, 0, folder_path, model, num_images, width, height, task_id)  
+                    
                 elif generation_mode == 'various':
                     log_message(f"Generating {num_images} AI prompts", category="processing")
                     update_task_status(task_id, f'Generating {num_images} AI prompts')
@@ -898,7 +1106,13 @@ def process_task_queue():
                     task_image_count = num_images
                     log_message(f"Generating {num_images} images for standard prompt", category="processing")
                     update_task_status(task_id, f'Generating {num_images} images for standard prompt')
-                    generate_images_for_prompt(user_input, 0, folder_path, model, num_images, width, height, task_id)
+                    
+                    # Translate and optimize the user input if it's Persian
+                    if is_persian(user_input):
+                        translated_prompt = translate_and_optimize_prompt(user_input)
+                    else:
+                        translated_prompt = user_input
+                    generate_images_for_prompt(translated_prompt, 0, folder_path, model, num_images, width, height, task_id)
                 
                 # Task completed successfully
                 update_task_status(task_id, 'Completed')
@@ -962,11 +1176,36 @@ if __name__ == '__main__':
     console.rule("[bold green]AI Image Generator[/bold green]", style="green")
     log_message(f"Starting server on port [yellow]15303[/yellow]", category="server", important=True)
 
+    # Collect static files to watch for changes
+    extra_files = []
+    
+    # Watch static files (CSS, JS)
+    for root, dirs, files in os.walk('static'):
+        for file in files:
+            if file.endswith('.css') or file.endswith('.js'):
+                filepath = os.path.join(root, file)
+                extra_files.append(filepath)
+                log_message(f"Watching file for changes: [cyan]{filepath}[/cyan]", category="autoreload")
+    
+    # Watch template files
+    for root, dirs, files in os.walk('templates'):
+        for file in files:
+            if file.endswith('.html'):
+                filepath = os.path.join(root, file)
+                extra_files.append(filepath)
+                log_message(f"Watching file for changes: [cyan]{filepath}[/cyan]", category="autoreload")
+    
+    log_message(f"Auto-reload enabled: Watching [yellow]{len(extra_files)}[/yellow] files for changes", 
+                category="autoreload", 
+                important=True)
+
     port = int(os.environ.get("PORT", 15303))
     socketio.run(
         app,
         debug=True, 
-        host='0.0.0.0', 
+        host='0.0.0.0',  # Ensure the app listens on all interfaces
         port=port,
-        allow_unsafe_werkzeug=True
+        allow_unsafe_werkzeug=True,
+        use_reloader=True,  # Enable the reloader
+        extra_files=extra_files  # Watch these files for changes
     )

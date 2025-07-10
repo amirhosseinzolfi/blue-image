@@ -1,0 +1,79 @@
+/* Recent Prompts Dropdown Styling */
+.recent-prompts-dropdown {
+    position: absolute;
+    width: calc(100% - 20px);
+    max-width: 600px;
+    background: #fff;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin-top: -2px;
+    z-index: 100;
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    transition: all 0.2s ease;
+    overflow: hidden;
+    border: 1px solid #e0e0e0;
+    border-top: none;
+}
+
+.recent-prompts-dropdown.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.recent-prompts-dropdown ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.recent-prompts-dropdown li.recent-prompt-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border-bottom: 1px solid #f0f0f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 14px;
+    color: #444;
+}
+
+.recent-prompts-dropdown li.recent-prompt-item:last-child {
+    border-bottom: none;
+}
+
+.recent-prompts-dropdown li.recent-prompt-item:hover {
+    background: #f7f7f7;
+}
+
+/* Fix input container position for dropdown alignment */
+.input-with-button {
+    position: relative;
+}
+
+/* Adapt for RTL */
+html[dir="rtl"] .recent-prompts-dropdown {
+    direction: rtl;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .recent-prompts-dropdown {
+        background: #2a2a2a;
+        border-color: #444;
+    }
+    
+    .recent-prompts-dropdown li.recent-prompt-item {
+        color: #e0e0e0;
+        border-bottom-color: #444;
+    }
+    
+    .recent-prompts-dropdown li.recent-prompt-item:hover {
+        background: #333;
+    }
+}
