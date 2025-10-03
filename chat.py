@@ -61,7 +61,7 @@ class ChatManager:
         # Initialize LangChain ChatOpenAI client
         self.llm = ChatOpenAI(
             base_url="http://localhost:15206/v1",
-            model="gemini-1.5-pro",
+            model="gpt-4o-mini",
             temperature=0.5,
             api_key="g4f-api-key"  # Dummy API key for local G4F API
         )

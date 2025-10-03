@@ -62,8 +62,8 @@ else:
 # --------------------------
 # Configuration
 # --------------------------
-LANGUAGE_MODEL_NAME = "gemini-1.5-pro"
-AI_PROMPT_MODEL_NAME = "gemini-1.5-pro"
+LANGUAGE_MODEL_NAME = "gpt-4o-mini"
+AI_PROMPT_MODEL_NAME = "gpt-4o-mini"
 NOTE_COVER_PROMPT_MODEL_NAME = "gpt-4o-mini"
 REQUESTS_TIMEOUT = 30
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
